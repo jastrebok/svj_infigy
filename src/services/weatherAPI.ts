@@ -12,10 +12,24 @@ if (!API_KEY) {
 type HourlyWeather = {
   dt: number;
   clouds: number;
+  uvi?: number;
+};
+
+type DailyWeather = {
+  dt: number;
+  sunrise: number;
+  sunset: number;
+};
+
+type CurrentWeather = {
+  dt: number;
+  uvi?: number;
 };
 
 type WeatherResponse = {
-  hourly: HourlyWeather[];
+  current?: CurrentWeather;
+  hourly?: HourlyWeather[];
+  daily?: DailyWeather[];
 };
 
 /**
@@ -31,7 +45,8 @@ export const fetchWeather = async (lat: number, lon: number): Promise<WeatherRes
       params: {
         lat,
         lon,
-        appid: API_KEY
+        appid: API_KEY,
+        units: 'metric'
       }
     });
     return response.data;

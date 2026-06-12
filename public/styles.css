@@ -1,0 +1,140 @@
+:root {
+  --bg: #f3f7fb;
+  --card: #ffffff;
+  --text: #071426;
+  --muted: #6b7280;
+  --line: #d9dee7;
+  --orange: #ff8a2a;
+  --green: #2f8f3a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 42px 26px 26px;
+  background: transparent;
+}
+
+.brand {
+  color: var(--orange);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.nav {
+  display: flex;
+  gap: 0;
+  align-items: center;
+}
+
+.nav button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #cfd5dd;
+  padding: 14px 18px;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  cursor: pointer;
+}
+
+.nav button.active {
+  color: var(--orange);
+  border-bottom: 2px solid var(--orange);
+}
+
+main {
+  padding: 0 26px 36px;
+}
+
+h1 {
+  margin: 0 0 20px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+button {
+  border: 0;
+  background: transparent;
+  color: var(--orange);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 10px;
+}
+
+/* highlight buttons on hover with a thin rounded frame using text color */
+button:hover {
+  box-shadow: 0 0 0 1px var(--text);
+  border-radius: 6px;
+}
+
+#view-status > div:first-child {
+  margin-bottom: 14px;
+}
+
+.status {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 26px 16px 16px;
+  box-shadow: 0 18px 35px rgba(21, 38, 63, .08);
+}
+
+.status > div {
+  margin-bottom: 10px;
+}
+
+.status strong {
+  font-weight: 500;
+}
+
+table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin-top: 14px !important;
+}
+
+td, th {
+  border: 0 !important;
+  border-bottom: 1px solid var(--line) !important;
+  padding: 14px 16px !important;
+  text-align: left;
+}
+
+canvas {
+  background: var(--card) !important;
+  border: 0 !important;
+  border-radius: 8px;
+  box-shadow: 0 18px 35px rgba(21, 38, 63, .08);
+}
+
+pre {
+  background: #111827 !important;
+  color: #e5e7eb !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 18px 35px rgba(21, 38, 63, .08);
+}
+
+/* compact weather table */
+.weather-compact { border-collapse: collapse; }
+.weather-compact td { padding: 4px 6px; border: 0; vertical-align: middle; }
+.weather-icon { font-size: 20px; display: inline-block; width: 28px; text-align: center; }
+.weather-icon.icon-sunny { color: #f59e0b; }
+.weather-icon.icon-partly { color: #f97316; }
+.weather-icon.icon-cloudy { color: #6b7280; }

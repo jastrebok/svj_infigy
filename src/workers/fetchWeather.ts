@@ -1,4 +1,4 @@
-import { fetchWeather } from '../weatherAPI';
+import { fetchWeather } from '../services/weatherAPI';
 import { parseISO, isValid, format } from 'date-fns';
 
 const args = process.argv.slice(2);

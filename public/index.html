@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Solar Housekeeper</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="brand">Solar Housekeeper</div>
+      <div class="nav">
+        <button id="nav-status" class="active">Status</button>
+        <button id="nav-logs">Logs</button>
+        <button id="nav-screenshots">Screenshots</button>
+      </div>
+    </div>
+
+    <main>
+    <div id="view-status">
+    <div>
+      <button id="start">Start</button>
+      <button id="stop">Stop</button>
+      <button id="force">Force Action</button>
+      <button id="refresh">Refresh</button>
+      <button id="fetch-weather">Fetch Weather Now</button>
+      <button id="toggle-browser-view">Browser view: off</button>
+    </div>
+
+    <div class="status">
+      <div><strong>State:</strong> <span id="state">n/a</span></div>
+      <div><strong>Last action:</strong> <span id="last">n/a</span></div>
+      <div><strong>Interval (ms):</strong> <span id="interval">n/a</span></div>
+      <div><strong>Action cooldown (ms):</strong> <span id="cooldown">n/a</span></div>
+      <div style="margin-top:12px">
+        <strong>Weather:</strong>
+        <table class="weather-compact" style="margin-top:8px">
+          <tr>
+            <td style="padding-right:8px"><span id="weather-icon" class="weather-icon" aria-hidden="true">—</span></td>
+            <td>
+              <div style="font-weight:600"><span id="weather-clouds">n/a</span>%</div>
+              <div style="font-size:12px; color:var(--muted)"><span id="weather-uvi">n/a</span> UV • <span id="weather-fetched">n/a</span></div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <strong>Power (latest):</strong>
+      <table style="width:100%; margin-top:8px; border-collapse:collapse;">
+        <tr>
+          <td style="border:1px solid #eee; padding:6px">Dům</td>
+          <td id="power-dum" style="border:1px solid #eee; padding:6px">n/a</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:6px">FVE</td>
+          <td id="power-fve" style="border:1px solid #eee; padding:6px">n/a</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:6px">Baterie</td>
+          <td id="power-baterie" style="border:1px solid #eee; padding:6px">n/a</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:6px">Síť</td>
+          <td id="power-sit" style="border:1px solid #eee; padding:6px">n/a</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="margin-top:18px; height:240px;">
+      <canvas id="weatherChart" width="640" height="240" style="width:100%; height:240px; background:#fff; border:1px solid #eee;"></canvas>
+      <div id="chart-error" style="color:#900; display:none; margin-top:6px"></div>
+    </div>
+
+    </div>
+
+    <div id="view-logs" style="display:none">
+      <div style="margin-top:8px">
+        <button id="refresh-logs">Refresh Logs</button>
+      </div>
+      <pre id="logs-pre" style="height:400px; overflow:auto; background:#111; color:#eee; padding:12px; border-radius:6px; border:1px solid #ccc"></pre>
+    </div>
+
+    <div id="view-screenshots" style="display:none">
+      <div style="margin-top:8px">
+        <button id="refresh-screenshots">Refresh Screenshots</button>
+      </div>
+      <div id="screenshots-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
