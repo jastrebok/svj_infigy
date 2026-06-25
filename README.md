@@ -48,6 +48,21 @@ Development
 - Source TypeScript is in `src/`.
 - Build with `npm run build` (project uses `tsconfig.json`).
 
+Container / Podman
+------------------
+- A `Containerfile` is included for Podman builds.
+- Build the image with:
+
+```bash
+npm run container:build
+```
+- Run the container with:
+
+```bash
+npm run container:run
+```
+- The app listens on port `3000` and serves the UI from the container.
+
 Where to edit behavior
 ----------------------
 - Add or update action implementations in `src/services/playwrightActions.ts` and entries in `src/support/actions-config.json`.

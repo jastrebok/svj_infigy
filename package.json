@@ -4,6 +4,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "start": "node dist/src/services/server.js",
+    "container:build": "podman build -f Containerfile -t svj_infigy .",
+    "container:run": "podman run --rm -p 3000:3000 --env-file .env -v $PWD/logs:/usr/src/app/logs svj_infigy",
     "infigy": "npx tsx src/services/puppeteer_test",
     "fetchWeather": "npx tsx src/workers/fetchWeather",
     "controller": "npx tsx src/services/server.ts"
