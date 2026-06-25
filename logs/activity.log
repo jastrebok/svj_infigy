@@ -111,3 +111,12 @@
 {"ts":1782059014957,"kind":"power","power":{"FVE":"4.7 kW","Baterie":"0.0 kW","Síť":"0.1 kW","Dům":"3.0 kW"}}
 {"ts":1782059199852,"kind":"power","power":{"FVE":"4.4 kW","Baterie":"0.1 kW","Síť":"0.1 kW","Dům":"3.2 kW"}}
 {"ts":1782059243100,"kind":"power","power":{"FVE":"4.3 kW","Baterie":"0.4 kW","Síť":"0.0 kW","Dům":"3.5 kW"}}
+{"ts":1782397260729,"kind":"power","power":{"FVE":"5.9 kW","Baterie":"0.0 kW","Síť":"0.0 kW","Dům":"5.1 kW"}}
+{"ts":1782397377738,"kind":"power","power":{"FVE":"6.7 kW","Baterie":"0.0 kW","Síť":"0.3 kW","Dům":"6.3 kW"}}
+{"ts":1782397497700,"kind":"power","power":{"FVE":"6.6 kW","Baterie":"1.1 kW","Síť":"0.2 kW","Dům":"7.1 kW"}}
+{"ts":1782397617707,"kind":"power","power":{"FVE":"5.3 kW","Baterie":"5.2 kW","Síť":"0.1 kW","Dům":"10.0 kW"}}
+{"ts":1782397737705,"kind":"power","power":{"FVE":"3.7 kW","Baterie":"3.6 kW","Síť":"0.1 kW","Dům":"6.5 kW"}}
+{"ts":1782397857696,"kind":"power","power":{"FVE":"3.5 kW","Baterie":"3.9 kW","Síť":"0.1 kW","Dům":"6.6 kW"}}
+{"ts":1782397977702,"kind":"power","power":{"FVE":"3.5 kW","Baterie":"4.0 kW","Síť":"0.0 kW","Dům":"6.6 kW"}}
+{"ts":1782400533644,"kind":"power","power":{"FVE":"0.2 kW","Baterie":"6.0 kW","Síť":"0.0 kW","Dům":"4.7 kW"}}
+{"ts":1782400791314,"kind":"power","power":{"FVE":"0.2 kW","Baterie":"6.1 kW","Síť":"0.0 kW","Dům":"4.8 kW"}}

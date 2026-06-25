@@ -45,7 +45,22 @@ app.get('/api/status', (_req, res) => {
     controllerRunning: controller.isRunning(),
     passiveNextFetchAt,
     passiveIntervalMs: PASSIVE_INTERVAL_MS,
+    currentScenario: controller.getCurrentScenario(),
   }));
+});
+
+app.get('/api/scenarios', async (_req, res) => {
+  try {
+    const cfgPath = path.join(__dirname, '..', 'support', 'scenarios-config.json');
+    const exists = await new Promise(resolve => fs.exists(cfgPath, exists => resolve(exists)));
+    if (!exists) return res.json({ ok: true, scenarios: [] });
+    const raw = await fs.promises.readFile(cfgPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    const scenarios = Array.isArray(parsed) ? parsed : [];
+    res.json({ ok: true, scenarios });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
 });
 
 app.get('/api/metrics', async (req, res) => {

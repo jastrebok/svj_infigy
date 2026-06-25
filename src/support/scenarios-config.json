@@ -1,0 +1,18 @@
+[
+  {
+    "id": "day_operation",
+    "label": "Day Operation",
+    "description": "Actions to take during daytime when conditions are met",
+    "trigger": "uvi >= 3 && (power_total === null || power_total < 500) && isDay",
+    "actionId": "turn_on_plug",
+    "enabled": true
+  },
+  {
+    "id": "night_operation",
+    "label": "Night Operation",
+    "description": "Actions to take during night when conditions are met",
+    "trigger": "isNight && (power_total !== null && power_total > 200)",
+    "actionId": "turn_off_plug",
+    "enabled": true
+  }
+]

@@ -18,6 +18,15 @@ type ControllerOptions = {
   actionCooldownMs?: number;
 };
 
+type Scenario = {
+  id: string;
+  label?: string;
+  description?: string;
+  trigger: string;
+  actionId: string;
+  enabled?: boolean;
+};
+
 export class SolarHousekeeper {
   private state: State = State.Idle;
   private intervalMs: number;
@@ -29,6 +38,8 @@ export class SolarHousekeeper {
   private latestNightRanges: { startMs: number; endMs: number }[] | null = null;
   private latestPower: Record<string, string | null> | null = null;
   private latestPlug: string | null = null;
+  private scenarios: Scenario[] = [];
+  private lastSelectedScenario: Scenario | null = null;
   private page: Page | null = null;
   private browser: Browser | null = null;
   private logsDir = path.join(__dirname, '..', '..', 'logs');
@@ -46,6 +57,80 @@ export class SolarHousekeeper {
   constructor(opts: ControllerOptions = {}) {
     this.intervalMs = opts.intervalMs ?? 30_000; // default 30s
     this.actionCooldownMs = opts.actionCooldownMs ?? 60_000; // default 60s
+    void this.loadScenarios().catch(err => console.warn('loadScenarios failed:', err));
+  }
+
+  private async loadScenarios() {
+    try {
+      const cfgPath = path.join(__dirname, '..', 'support', 'scenarios-config.json');
+      const raw = await fs.promises.readFile(cfgPath, 'utf-8');
+      const parsed = JSON.parse(raw) as Scenario[];
+      this.scenarios = Array.isArray(parsed) ? parsed.filter(s => s && typeof s.trigger === 'string') : [];
+      console.log('Loaded scenarios:', this.scenarios.map(s => s.id));
+    } catch (err) {
+      console.warn('Could not load scenarios config:', err);
+      this.scenarios = [];
+    }
+  }
+
+  private computePowerTotal(): number | null {
+    if (!this.latestPower) return null;
+    let sum = 0;
+    let found = false;
+    for (const k of Object.keys(this.latestPower)) {
+      const v = this.latestPower[k];
+      if (v == null) continue;
+      const n = Number(String(v).replace(/[^0-9.-]+/g, ''));
+      if (!Number.isNaN(n)) {
+        sum += n;
+        found = true;
+      }
+    }
+    return found ? sum : null;
+  }
+
+  private evaluateCondition(expr: string): boolean {
+    try {
+      const uvi = this.latestWeather?.uvi ?? null;
+      const clouds = this.latestWeather?.clouds ?? null;
+      const power_total = this.computePowerTotal();
+      const now = this.now();
+      let isNight = false;
+      if (this.latestNightRanges) {
+        isNight = this.latestNightRanges.some(r => now >= r.startMs && now <= r.endMs);
+      }
+      const isDay = !isNight;
+      const power = this.latestPower ?? {};
+      const fn = new Function('uvi', 'clouds', 'isDay', 'isNight', 'power_total', 'power', `return (${expr});`);
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      const res = fn(uvi, clouds, isDay, isNight, power_total, power);
+      return Boolean(res);
+    } catch (err) {
+      console.warn('Error evaluating scenario expression:', expr, err);
+      return false;
+    }
+  }
+
+  private async runScenarioActionOrDefault() {
+    if (!this.page) return;
+    this.lastSelectedScenario = null;
+    try {
+      for (const s of this.scenarios) {
+        if (!s.enabled) continue;
+        if (s.trigger && this.evaluateCondition(s.trigger)) {
+          console.log('Scenario matched:', s.id, '->', s.actionId);
+          this.lastSelectedScenario = s;
+          await performActionById(s.actionId, this.page);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Error running scenario action:', err);
+    }
+    this.lastSelectedScenario = null;
+    // fallback to default action
+    await runAction(this.page);
   }
 
   getState() {
@@ -101,7 +186,7 @@ export class SolarHousekeeper {
         const sinceLast = this.now() - this.lastActionAt;
         if (sinceLast >= this.actionCooldownMs) {
           this.setState(State.Busy);
-          await runAction(this.page);
+          await this.runScenarioActionOrDefault();
           this.lastActionAt = this.now();
           this.setState(State.Ready);
         } else {
@@ -175,6 +260,14 @@ export class SolarHousekeeper {
   async fetchWeatherNow() {
     await this.fetchLatestWeather();
     return { summary: this.latestWeather, hourly: this.latestHourly, nightRanges: this.latestNightRanges, power: this.latestPower };
+  }
+
+  getScenarios() {
+    return this.scenarios.slice();
+  }
+
+  getCurrentScenario() {
+    return this.lastSelectedScenario ? { id: this.lastSelectedScenario.id, label: this.lastSelectedScenario.label, actionId: this.lastSelectedScenario.actionId } : null;
   }
 
   private async fetchLatestWeather() {

@@ -20,6 +20,11 @@ async function refresh() {
     setTextIf('last', s.lastActionAt ? ts(s.lastActionAt) : 'never');
     setTextIf('interval', s.intervalMs);
     setTextIf('cooldown', s.actionCooldownMs);
+    if (s.currentScenario && typeof s.currentScenario === 'object') {
+      setTextIf('current-scenario', `${s.currentScenario.label || s.currentScenario.id} (${s.currentScenario.actionId})`);
+    } else {
+      setTextIf('current-scenario', 'none');
+    }
 
     if (s.latestWeather) {
       setTextIf('weather-clouds', typeof s.latestWeather.clouds === 'number' ? s.latestWeather.clouds : 'n/a');
@@ -727,31 +732,51 @@ async function fetchAndShowScreenshots() {
 
 async function fetchAndShowConfig() {
   try {
-    const r = await api('/api/actions');
-    if (!r || !r.ok) {
+    const [actionsRes, scenariosRes] = await Promise.all([api('/api/actions'), api('/api/scenarios')]);
+    if (!actionsRes || !actionsRes.ok || !scenariosRes || !scenariosRes.ok) {
       const el = document.getElementById('config-actions');
       if (el) el.textContent = 'Failed to load config';
       return;
     }
-    const actions = r.actions || [];
+    const actions = actionsRes.actions || [];
+    const scenarios = scenariosRes.scenarios || [];
     const cont = document.getElementById('config-actions');
     if (!cont) return;
+
+    let html = '<div style="margin-bottom:16px"><strong>Actions</strong></div>';
     if (!actions.length) {
-      cont.innerHTML = '<div>No actions configured.</div>';
-      return;
+      html += '<div>No actions configured.</div>';
+    } else {
+      html += '<table style="width:100%; border-collapse:collapse"><thead><tr><th style="border:1px solid #eee; padding:6px">id</th><th style="border:1px solid #eee; padding:6px">label</th><th style="border:1px solid #eee; padding:6px">description</th><th style="border:1px solid #eee; padding:6px">handler</th><th style="border:1px solid #eee; padding:6px">enabled</th></tr></thead><tbody>';
+      for (const a of actions) {
+        html += '<tr>' +
+          `<td style="border:1px solid #eee; padding:6px">${(a.id||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px">${(a.label||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px">${(a.description||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px">${(a.handler||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px">${a.enabled ? 'yes' : 'no'}</td>` +
+          '</tr>';
+      }
+      html += '</tbody></table>';
     }
-    // build simple table
-    let html = '<table style="width:100%; border-collapse:collapse"><thead><tr><th style="border:1px solid #eee; padding:6px">id</th><th style="border:1px solid #eee; padding:6px">label</th><th style="border:1px solid #eee; padding:6px">description</th><th style="border:1px solid #eee; padding:6px">handler</th><th style="border:1px solid #eee; padding:6px">enabled</th></tr></thead><tbody>';
-    for (const a of actions) {
-      html += '<tr>' +
-        `<td style="border:1px solid #eee; padding:6px">${(a.id||'')}</td>` +
-        `<td style="border:1px solid #eee; padding:6px">${(a.label||'')}</td>` +
-        `<td style="border:1px solid #eee; padding:6px">${(a.description||'')}</td>` +
-        `<td style="border:1px solid #eee; padding:6px">${(a.handler||'')}</td>` +
-        `<td style="border:1px solid #eee; padding:6px">${a.enabled ? 'yes' : 'no'}</td>` +
-        '</tr>';
+
+    html += '<div style="margin:24px 0 16px"><strong>Scenarios</strong></div>';
+    if (!scenarios.length) {
+      html += '<div>No scenarios configured.</div>';
+    } else {
+      html += '<table style="width:100%; border-collapse:collapse"><thead><tr><th style="border:1px solid #eee; padding:6px">id</th><th style="border:1px solid #eee; padding:6px">label</th><th style="border:1px solid #eee; padding:6px">trigger</th><th style="border:1px solid #eee; padding:6px">actionId</th><th style="border:1px solid #eee; padding:6px">enabled</th></tr></thead><tbody>';
+      for (const s of scenarios) {
+        html += '<tr>' +
+          `<td style="border:1px solid #eee; padding:6px">${(s.id||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px">${(s.label||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px; font-family:monospace">${(s.trigger||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px">${(s.actionId||'')}</td>` +
+          `<td style="border:1px solid #eee; padding:6px">${s.enabled ? 'yes' : 'no'}</td>` +
+          '</tr>';
+      }
+      html += '</tbody></table>';
     }
-    html += '</tbody></table>';
+
     cont.innerHTML = html;
   } catch (err) {
     console.error('fetchAndShowConfig failed', err);
