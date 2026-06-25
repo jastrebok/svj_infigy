@@ -290,26 +290,30 @@ function updateChartFromHourly(hourly) {
 }
 
 // Render chart from precomputed series arrays
-function updateChartFromSeries(timestamps, labels, clouds, uvis, isDayFlags) {
-  if (!labels || !labels.length) return;
+function updateChartFromSeries(entries, nowMs) {
+  if (!entries || !entries.length) return;
   const ctx = document.getElementById('weatherChart').getContext('2d');
   if (!ctx) { showChartError('Canvas context not available'); return; }
   if (window.Chart === undefined) { showChartError('Chart.js not loaded'); return; }
 
-  // compute night ranges as index ranges using isDay flags
-  const nightIndexRanges = [];
-  let curStartIdx = null;
-  for (let i = 0; i < isDayFlags.length; i++) {
-    if (!isDayFlags[i]) {
-      if (curStartIdx === null) curStartIdx = i;
-    } else {
-      if (curStartIdx !== null) {
-        nightIndexRanges.push({ startIndex: curStartIdx, endIndex: i - 1 });
-        curStartIdx = null;
-      }
+  const sorted = entries.slice().sort((a, b) => a.ts - b.ts);
+  const clouds = sorted.map(e => ({ x: e.ts, y: e.clouds }));
+  const uvis = sorted.map(e => ({ x: e.ts, y: e.uvi }));
+  const dayRanges = [];
+  let rangeStart = null;
+  for (let i = 0; i < sorted.length; i++) {
+    const entry = sorted[i];
+    const isDay = typeof entry.isDay === 'boolean' ? entry.isDay : (new Date(entry.ts).getHours() >= 6 && new Date(entry.ts).getHours() < 18);
+    if (!isDay) {
+      if (rangeStart === null) rangeStart = entry.ts;
+    } else if (rangeStart !== null) {
+      dayRanges.push({ startMs: rangeStart, endMs: entry.ts });
+      rangeStart = null;
     }
   }
-  if (curStartIdx !== null) nightIndexRanges.push({ startIndex: curStartIdx, endIndex: isDayFlags.length - 1 });
+  if (rangeStart !== null) {
+    dayRanges.push({ startMs: rangeStart, endMs: sorted[sorted.length - 1].ts });
+  }
 
   const pluginNight = {
     id: 'nightShade',
@@ -317,13 +321,12 @@ function updateChartFromSeries(timestamps, labels, clouds, uvis, isDayFlags) {
       const { ctx, chartArea: ca, scales } = chart;
       const xScale = scales.x;
       ctx.save();
-      for (const r of nightIndexRanges) {
-        const left = xScale.getPixelForValue(r.startIndex);
-        const right = xScale.getPixelForValue(r.endIndex);
-        const next = xScale.getPixelForValue(r.endIndex + 1);
-        const width = (next && !isNaN(next) ? next : right) - left;
+      for (const r of dayRanges) {
+        const left = xScale.getPixelForValue(r.startMs);
+        const right = xScale.getPixelForValue(r.endMs);
+        if (isNaN(left) || isNaN(right)) continue;
         ctx.fillStyle = 'rgba(0,0,0,0.08)';
-        ctx.fillRect(left, ca.top, width, ca.bottom - ca.top);
+        ctx.fillRect(left, ca.top, right - left, ca.bottom - ca.top);
       }
       ctx.restore();
     }
@@ -334,10 +337,8 @@ function updateChartFromSeries(timestamps, labels, clouds, uvis, isDayFlags) {
     afterDraw(chart, args, options) {
       const { ctx, chartArea: ca, scales } = chart;
       const xScale = scales.x;
-      const idx = chart.currentIndex;
-      if (typeof idx !== 'number' || idx < 0) return;
-      const x = xScale.getPixelForValue(idx);
-      if (!x || isNaN(x)) return;
+      const x = xScale.getPixelForValue(nowMs);
+      if (x === null || x === undefined || isNaN(x)) return;
       ctx.save();
       ctx.setLineDash([6, 4]);
       ctx.strokeStyle = options && options.color ? options.color : 'rgba(0,0,0,0.6)';
@@ -350,54 +351,62 @@ function updateChartFromSeries(timestamps, labels, clouds, uvis, isDayFlags) {
     }
   };
 
+  const chartData = {
+    datasets: [
+      {
+        label: 'Clouds (%)',
+        data: clouds,
+        borderColor: 'rgba(54,162,235,1)',
+        backgroundColor: 'rgba(54,162,235,0.2)',
+        yAxisID: 'y',
+        tension: 0.2,
+        parsing: false,
+      },
+      {
+        label: 'UV Index',
+        data: uvis,
+        borderColor: 'rgba(255,99,132,1)',
+        backgroundColor: 'rgba(255,99,132,0.2)',
+        yAxisID: 'y1',
+        tension: 0.2,
+        parsing: false,
+      },
+    ],
+  };
+
+  const config = {
+    type: 'line',
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Time' },
+          ticks: {
+            callback(value) {
+              return new Date(value).toLocaleTimeString();
+            }
+          }
+        },
+        y: { type: 'linear', position: 'left', suggestedMin: 0, suggestedMax: 100, title: { display: true, text: 'Clouds (%)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, suggestedMin: 0, suggestedMax: 11, title: { display: true, text: 'UV Index' } }
+      },
+      plugins: { legend: { position: 'top' } }
+    },
+    plugins: [pluginNight, pluginCurrentLine]
+  };
+
   if (weatherChart) {
-    weatherChart.data.labels = labels;
-    weatherChart.data.datasets[0].data = clouds;
-    weatherChart.data.datasets[1].data = uvis;
+    weatherChart.data = chartData;
+    weatherChart.options = config.options;
     weatherChart.update();
-    weatherChart.timestamps = timestamps;
     return;
   }
 
   try {
-    weatherChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Clouds (%)',
-            data: clouds,
-            borderColor: 'rgba(54,162,235,1)',
-            backgroundColor: 'rgba(54,162,235,0.2)',
-            yAxisID: 'y',
-            tension: 0.2,
-          },
-          {
-            label: 'UV Index',
-            data: uvis,
-            borderColor: 'rgba(255,99,132,1)',
-            backgroundColor: 'rgba(255,99,132,0.2)',
-            yAxisID: 'y1',
-            tension: 0.2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: { type: 'category' },
-          y: {
-            type: 'linear', position: 'left', suggestedMin: 0, suggestedMax: 100, title: { display: true, text: 'Clouds (%)' }
-          },
-          y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, suggestedMin: 0, suggestedMax: 11, title: { display: true, text: 'UV Index' } }
-        },
-        plugins: { legend: { position: 'top' } }
-      },
-      plugins: [pluginNight, pluginCurrentLine]
-    });
-    weatherChart.timestamps = timestamps;
+    weatherChart = new Chart(ctx, config);
   } catch (err) {
     showChartError('Failed to create Chart: ' + String(err));
     console.error(err);
@@ -430,58 +439,26 @@ async function fetchAndRenderWeather() {
         const rows = (m && m.ok && m.rows) ? m.rows : [];
 
         // Build past N hourly timestamps aligned to hour
-        const now = Date.now();
-        const startHour = Math.floor((now - histHours * 60 * 60 * 1000) / 3600000) * 3600000;
-        const pastCount = histHours;
-        const pastTimestamps = [];
-        for (let i = 0; i < pastCount; i++) pastTimestamps.push(startHour + i * 3600000);
+        const chartEntries = rows
+          .filter(row => row && typeof row.ts === 'number')
+          .map(row => ({
+            ts: row.ts,
+            clouds: row.weather && typeof row.weather.clouds === 'number' ? row.weather.clouds : null,
+            uvi: row.weather && typeof row.weather.uvi === 'number' ? row.weather.uvi : null,
+            isDay: typeof row.weather?.isDay === 'boolean' ? row.weather.isDay : undefined,
+          }))
+          .filter(entry => entry.clouds !== null || entry.uvi !== null)
+          .sort((a, b) => a.ts - b.ts);
 
-        const pastLabels = pastTimestamps.map(t => new Date(t).toLocaleString());
-        const pastClouds = pastTimestamps.map(t => {
-          // find closest row by ts
-          let best = null;
-          let bestDiff = Infinity;
-          for (const row of rows) {
-            if (!row || typeof row.ts !== 'number') continue;
-            const d = Math.abs(row.ts - t);
-            if (d < bestDiff) { bestDiff = d; best = row; }
-          }
-          if (best && best.weather && typeof best.weather.clouds === 'number') return best.weather.clouds; else return null;
-        });
-        const pastUvis = pastTimestamps.map(t => {
-          let best = null; let bestDiff = Infinity;
-          for (const row of rows) {
-            if (!row || typeof row.ts !== 'number') continue;
-            const d = Math.abs(row.ts - t);
-            if (d < bestDiff) { bestDiff = d; best = row; }
-          }
-          if (best && best.weather && typeof best.weather.uvi === 'number') return best.weather.uvi; else return null;
-        });
+        const futureEntries = hourly.map(h => ({
+          ts: h.dt * 1000,
+          clouds: typeof h.clouds === 'number' ? h.clouds : null,
+          uvi: typeof h.uvi === 'number' ? h.uvi : null,
+          isDay: !!h.isDay,
+        })).filter(entry => entry.clouds !== null || entry.uvi !== null);
 
-        // Future forecast series (hourly)
-        const futureTimestamps = hourly.map(h => h.dt * 1000);
-        const futureLabels = futureTimestamps.map(t => new Date(t).toLocaleString());
-        const futureClouds = hourly.map(h => (typeof h.clouds === 'number' ? h.clouds : null));
-        const futureUvis = hourly.map(h => (typeof h.uvi === 'number' ? h.uvi : null));
-        const futureIsDay = hourly.map(h => !!h.isDay);
-
-        // build combined arrays
-        const timestamps = pastTimestamps.concat(futureTimestamps);
-        const labels = pastLabels.concat(futureLabels);
-        const clouds = pastClouds.concat(futureClouds);
-        const uvis = pastUvis.concat(futureUvis);
-
-        // isDay flags: estimate for past based on hour (6..18)
-        const pastIsDay = pastTimestamps.map(t => {
-          const hr = new Date(t).getHours();
-          return hr >= 6 && hr < 18;
-        });
-        const isDayFlags = pastIsDay.concat(futureIsDay);
-
-        updateChartFromSeries(timestamps, labels, clouds, uvis, isDayFlags);
-        // set now index to first timestamp >= now
-        const nowIdx = timestamps.findIndex(t => t >= Date.now());
-        if (weatherChart) weatherChart.currentIndex = (nowIdx === -1 ? timestamps.length - 1 : nowIdx);
+        const allEntries = chartEntries.concat(futureEntries).sort((a, b) => a.ts - b.ts);
+        updateChartFromSeries(allEntries, Date.now());
         // Draw sparklines for power values
         try {
           const keys = { dum: 'Dům', fve: 'FVE', baterie: 'Baterie' };
@@ -667,7 +644,7 @@ document.getElementById('nav-config').addEventListener('click', async () => {
 });
 
 function setActiveNav(id) {
-  ['nav-status','nav-logs','nav-screenshots'].forEach(btnId => {
+  ['nav-status','nav-logs','nav-screenshots','nav-config'].forEach(btnId => {
     const b = document.getElementById(btnId);
     if (!b) return;
     if (btnId === id) b.classList.add('active'); else b.classList.remove('active');
