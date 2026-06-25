@@ -63,6 +63,20 @@ npm run container:run
 ```
 - The app listens on port `3000` and serves the UI from the container.
 
+Grafana / InfluxDB
+------------------
+- The backend exposes the same JSON time-series entries used by the UI at `/api/metrics`.
+- A line-protocol export endpoint is available at `/api/metrics/line`.
+- The `since` query parameter is epoch milliseconds, for example:
+
+```bash
+http://localhost:3000/api/metrics/line?since=1690000000000
+```
+
+- Example import: request the last 24 hours of data from the backend and push into Influx.
+- The line-protocol export includes tags `plug` and `weather_range`, numeric fields `clouds`, `uvi`, `weather_fetchedAt`, `power_total`, and raw power values as `power_dum`, `power_fve`, `power_baterie`, `power_sit`.
+- The JSON endpoint returns full rows with `ts`, `weather`, `power`, and `plug` in the same format as stored in `logs/data.ndjson`.
+
 Where to edit behavior
 ----------------------
 - Add or update action implementations in `src/services/playwrightActions.ts` and entries in `src/support/actions-config.json`.

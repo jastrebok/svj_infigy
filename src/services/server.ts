@@ -4,6 +4,78 @@ import path from 'path';
 import fs from 'fs';
 import { controller } from './stateController';
 import { setBrowserVisible, isBrowserVisible } from './playwrightActions';
+import { query as queryMetrics } from './storage';
+
+function parseNumber(value: any): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
+  const match = value.replace(',', '.').match(/[-+]?\d*\.?\d+/);
+  if (!match) return null;
+  const num = Number(match[0]);
+  return Number.isFinite(num) ? num : null;
+}
+
+function flattenMetricRow(row: any) {
+  if (!row || typeof row !== 'object') return row;
+  const flat: Record<string, any> = { ts: row.ts };
+
+  if (typeof row.plug !== 'undefined') flat.plug = row.plug;
+  if (row.weather && typeof row.weather === 'object') {
+    for (const key of Object.keys(row.weather)) {
+      flat[`weather_${key}`] = row.weather[key];
+    }
+  }
+  if (row.power && typeof row.power === 'object') {
+    let total = 0;
+    for (const key of Object.keys(row.power)) {
+      const value = row.power[key];
+      const fieldName = `power_${key.replace(/\s+/g, '_').toLowerCase()}`;
+      flat[fieldName] = value;
+      const numeric = parseNumber(value);
+      if (numeric !== null) total += numeric;
+    }
+    flat.power_total = Number.isFinite(total) ? total : null;
+  }
+
+  return flat;
+}
+
+function escapeInflux(value: string) {
+  return value.replace(/([ ,=])/g, '\\$1');
+}
+
+function formatInfluxRow(row: any, measurement = 'solar_metrics') {
+  if (!row || typeof row !== 'object') return '';
+  const flat = flattenMetricRow(row);
+  const tags: Record<string, string> = {};
+  const fields: Record<string, string | number | boolean> = {};
+
+  if (typeof flat.plug === 'string') {
+    tags.plug = flat.plug;
+  }
+  if (flat.weather_rangeStartIso) {
+    tags.weather_range = String(flat.weather_rangeStartIso);
+  }
+
+  if (typeof flat.weather_clouds === 'number') fields.clouds = flat.weather_clouds;
+  if (typeof flat.weather_uvi === 'number') fields.uvi = flat.weather_uvi;
+  if (typeof flat.weather_fetchedAt === 'number') fields.weather_fetchedAt = flat.weather_fetchedAt;
+  if (typeof flat.power_dum === 'string') fields.power_dum = String(flat.power_dum);
+  if (typeof flat.power_fve === 'string') fields.power_fve = String(flat.power_fve);
+  if (typeof flat.power_baterie === 'string') fields.power_baterie = String(flat.power_baterie);
+  if (typeof flat.power_sit === 'string') fields.power_sit = String(flat.power_sit);
+  if (typeof flat.power_total === 'number') fields.power_total = flat.power_total;
+
+  const tagPairs = Object.entries(tags).map(([k,v]) => `${escapeInflux(k)}=${escapeInflux(v)}`);
+  const fieldPairs = Object.entries(fields).map(([k,v]) => {
+    if (typeof v === 'number') return `${escapeInflux(k)}=${v}`;
+    return `${escapeInflux(k)}="${escapeInflux(String(v))}"`;
+  });
+
+  if (!fieldPairs.length) return '';
+  const timestamp = typeof row.ts === 'number' ? `${row.ts * 1000000}` : '';
+  return `${escapeInflux(measurement)}${tagPairs.length ? ',' + tagPairs.join(',') : ''} ${fieldPairs.join(',')}${timestamp ? ' ' + timestamp : ''}`;
+}
 
 const app = express();
 app.use(cors());
@@ -36,7 +108,6 @@ function stopPassive() {
   passiveNextFetchAt = null;
   console.log('Passive weather polling stopped');
 }
-import { query as queryMetrics } from './storage';
 
 // API
 app.get('/api/status', (_req, res) => {
@@ -77,6 +148,25 @@ app.get('/api/metrics', async (req, res) => {
     res.status(500).json({ ok: false, error: String(err) });
   }
 });
+
+app.get('/api/metrics/line', async (req, res) => {
+  try {
+    const sinceParam = req.query.since;
+    let since = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    if (sinceParam) {
+      const n = Number(sinceParam);
+      if (!Number.isNaN(n)) since = n;
+    }
+    const rows = await queryMetrics(since);
+    const lines = rows
+      .map((row) => formatInfluxRow(row, 'solar_metrics'))
+      .filter(Boolean);
+    res.type('text/plain').send(lines.join('\n') + (lines.length ? '\n' : ''));
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 app.post('/api/start', (_req, res) => {
   controller.start();
   // controller is active -> stop passive polling if running

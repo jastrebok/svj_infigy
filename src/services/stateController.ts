@@ -294,13 +294,15 @@ export class SolarHousekeeper {
         clouds = w.hourly[0].clouds;
       }
 
-      // prefer hourly uvi values in range, fallback to current
+      // prefer current UVI value if available, otherwise use hourly forecast
       let uvi: number | undefined;
-      const hourlyUvi = hourlyInRange.map(h => h.uvi).filter(x => typeof x === 'number') as number[];
-      if (hourlyUvi.length > 0) {
-        uvi = Math.max(...hourlyUvi);
-      } else if (w.current && typeof w.current.uvi === 'number') {
+      if (w.current && typeof w.current.uvi === 'number') {
         uvi = w.current.uvi;
+      } else {
+        const hourlyUvi = hourlyInRange.map(h => h.uvi).filter(x => typeof x === 'number') as number[];
+        if (hourlyUvi.length > 0) {
+          uvi = hourlyUvi[0];
+        }
       }
 
       // determine day/night for each hourly entry using daily sunrise/sunset

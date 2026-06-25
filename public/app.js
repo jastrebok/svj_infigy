@@ -47,6 +47,16 @@ async function refresh() {
       setTextIf('power-sit', s.latestPower['Síť'] ?? 'n/a');
       // plug status provided separately as latestPlug
       setTextIf('power-plug', s.latestPlug ?? 'n/a');
+      const plugEl = document.getElementById('power-plug');
+      if (plugEl) {
+        if (s.latestPlug === 'on') {
+          plugEl.style.color = 'var(--success)';
+        } else if (s.latestPlug === 'off') {
+          plugEl.style.color = 'var(--muted)';
+        } else {
+          plugEl.style.color = '';
+        }
+      }
     } else {
       setTextIf('power-dum', 'n/a');
       setTextIf('power-fve', 'n/a');
@@ -115,8 +125,61 @@ function showChartError(msg) {
   }
 }
 
+function parseNumericValue(value) {
+  if (value === undefined || value === null) return null;
+  const str = String(value).replace(/\s+/g, '');
+  const match = str.match(/[-+]?\d+[,.]?\d*/);
+  if (!match) return null;
+  const num = Number(match[0].replace(',', '.'));
+  return Number.isFinite(num) ? num : null;
+}
+
+function buildPowerSeries(rows, key) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter(row => row && typeof row.ts === 'number')
+    .map(row => ({ x: row.ts, y: parseNumericValue(row.power?.[key]) }))
+    .filter(point => point.y !== null)
+    .sort((a, b) => a.x - b.x);
+}
+
+function buildPlugRanges(rows) {
+  if (!Array.isArray(rows)) return [];
+  const sorted = rows
+    .filter(row => row && typeof row.ts === 'number')
+    .sort((a, b) => a.ts - b.ts);
+  const ranges = [];
+  let currentState = null;
+  let startMs = null;
+  for (let i = 0; i < sorted.length; i++) {
+    const row = sorted[i];
+    const state = typeof row.plug === 'string' ? row.plug.toLowerCase() : 'off';
+    const next = sorted[i + 1];
+    const nextState = next && typeof next.plug === 'string' ? next.plug.toLowerCase() : 'off';
+    if (currentState === null) {
+      currentState = state;
+      startMs = row.ts;
+    }
+    if (state !== currentState) {
+      currentState = state;
+      startMs = row.ts;
+    }
+    if (nextState !== state) {
+      const endMs = next ? next.ts : row.ts + 60 * 1000;
+      if (startMs !== null) {
+        ranges.push({ startMs, endMs, state });
+      }
+      startMs = next ? next.ts : null;
+      currentState = nextState;
+    }
+  }
+  return ranges;
+}
+
 // Chart handling
 let weatherChart = null;
+let powerChart = null;
+let weatherTimeRange = null;
 function updateWeatherUIFromSummary(s) {
   if (!s) return;
   setTextIf('weather-clouds', typeof s.clouds === 'number' ? s.clouds : 'n/a');
@@ -147,15 +210,25 @@ function updateWeatherIcon(clouds) {
 
 function updateChartFromHourly(hourly) {
   if (!hourly || !hourly.length) return;
-  // prepare category-based data (labels as localized strings)
-  const labels = hourly.map(h => new Date(h.dt * 1000).toLocaleString());
-  const clouds = hourly.map(h => (typeof h.clouds === 'number' ? h.clouds : null));
-  const uvis = hourly.map(h => (typeof h.uvi === 'number' ? h.uvi : null));
-  const isDayFlags = hourly.map(h => !!h.isDay);
+
+  const entries = hourly.map(h => ({
+    ts: h.dt * 1000,
+    clouds: typeof h.clouds === 'number' ? h.clouds : null,
+    uvi: typeof h.uvi === 'number' ? h.uvi : null,
+    isDay: !!h.isDay,
+  }));
+
+  const clouds = entries.map(e => ({ x: e.ts, y: e.clouds }));
+  const uvis = entries.map(e => ({ x: e.ts, y: e.uvi }));
 
   const ctx = document.getElementById('weatherChart').getContext('2d');
   console.log('updateChartFromHourly', { hourlyLength: hourly.length });
-  
+
+  weatherTimeRange = {
+    startMs: entries[0].ts,
+    endMs: entries[entries.length - 1].ts,
+  };
+
   if (!ctx) {
     showChartError('Canvas context not available');
     return;
@@ -165,35 +238,32 @@ function updateChartFromHourly(hourly) {
     return;
   }
 
-  // compute night ranges as index ranges using isDay flags
-  const nightIndexRanges = [];
-  let curStartIdx = null;
-  for (let i = 0; i < isDayFlags.length; i++) {
-    if (!isDayFlags[i]) {
-      if (curStartIdx === null) curStartIdx = i;
-    } else {
-      if (curStartIdx !== null) {
-        nightIndexRanges.push({ startIndex: curStartIdx, endIndex: i - 1 });
-        curStartIdx = null;
-      }
+  const nightRanges = [];
+  let rangeStart = null;
+  for (let i = 0; i < entries.length; i++) {
+    if (!entries[i].isDay) {
+      if (rangeStart === null) rangeStart = entries[i].ts;
+    } else if (rangeStart !== null) {
+      nightRanges.push({ startMs: rangeStart, endMs: entries[i].ts });
+      rangeStart = null;
     }
   }
-  if (curStartIdx !== null) nightIndexRanges.push({ startIndex: curStartIdx, endIndex: isDayFlags.length - 1 });
+  if (rangeStart !== null) {
+    nightRanges.push({ startMs: rangeStart, endMs: entries[entries.length - 1].ts });
+  }
 
   const pluginNight = {
     id: 'nightShade',
-    beforeDraw(chart, args, options) {
+    beforeDraw(chart) {
       const { ctx, chartArea: ca, scales } = chart;
       const xScale = scales.x;
       ctx.save();
-      for (const r of nightIndexRanges) {
-        const left = xScale.getPixelForValue(r.startIndex);
-        // compute right edge as pixel of endIndex + 1 to cover the full bar width
-        const right = xScale.getPixelForValue(r.endIndex);
-        const next = xScale.getPixelForValue(r.endIndex + 1);
-        const width = (next && !isNaN(next) ? next : right) - left;
+      for (const r of nightRanges) {
+        const left = xScale.getPixelForValue(r.startMs);
+        const right = xScale.getPixelForValue(r.endMs);
+        if (isNaN(left) || isNaN(right)) continue;
         ctx.fillStyle = 'rgba(0,0,0,0.08)';
-        ctx.fillRect(left, ca.top, width, ca.bottom - ca.top);
+        ctx.fillRect(left, ca.top, right - left, ca.bottom - ca.top);
       }
       ctx.restore();
     }
@@ -201,16 +271,14 @@ function updateChartFromHourly(hourly) {
 
   const pluginCurrentLine = {
     id: 'currentLine',
-    afterDraw(chart, args, options) {
+    afterDraw(chart) {
       const { ctx, chartArea: ca, scales } = chart;
       const xScale = scales.x;
-      const idx = chart.currentIndex;
-      if (typeof idx !== 'number' || idx < 0) return;
-      const x = xScale.getPixelForValue(idx);
-      if (!x || isNaN(x)) return;
+      const x = xScale.getPixelForValue(Date.now());
+      if (x === null || x === undefined || isNaN(x)) return;
       ctx.save();
       ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = options && options.color ? options.color : 'rgba(0,0,0,0.6)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, ca.top);
@@ -221,10 +289,19 @@ function updateChartFromHourly(hourly) {
   };
 
   if (weatherChart) {
-    weatherChart.data.labels = labels;
     weatherChart.data.datasets[0].data = clouds;
     weatherChart.data.datasets[1].data = uvis;
-    setChartNowIndex(hourly);
+    weatherChart.options.scales.x = {
+      type: 'linear',
+      min: weatherTimeRange.startMs,
+      max: weatherTimeRange.endMs,
+      title: { display: true, text: 'Time' },
+      ticks: {
+        callback(value) {
+          return new Date(value).toLocaleTimeString();
+        }
+      }
+    };
     weatherChart.update();
     return;
   }
@@ -233,7 +310,6 @@ function updateChartFromHourly(hourly) {
     weatherChart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels,
         datasets: [
           {
             label: 'Clouds (%)',
@@ -242,6 +318,7 @@ function updateChartFromHourly(hourly) {
             backgroundColor: 'rgba(54,162,235,0.2)',
             yAxisID: 'y',
             tension: 0.2,
+            parsing: false,
           },
           {
             label: 'UV Index',
@@ -250,15 +327,24 @@ function updateChartFromHourly(hourly) {
             backgroundColor: 'rgba(255,99,132,0.2)',
             yAxisID: 'y1',
             tension: 0.2,
+            parsing: false,
           },
-        ],
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
           x: {
-            type: 'category',
+            type: 'linear',
+            min: weatherTimeRange.startMs,
+            max: weatherTimeRange.endMs,
+            title: { display: true, text: 'Time' },
+            ticks: {
+              callback(value) {
+                return new Date(value).toLocaleTimeString();
+              }
+            }
           },
           y: {
             type: 'linear',
@@ -282,7 +368,6 @@ function updateChartFromHourly(hourly) {
       },
       plugins: [pluginNight, pluginCurrentLine]
     });
-      setChartNowIndex(hourly);
   } catch (err) {
     showChartError('Failed to create Chart: ' + String(err));
     console.error(err);
@@ -374,6 +459,20 @@ function updateChartFromSeries(entries, nowMs) {
     ],
   };
 
+  const xScale = {
+    type: 'linear',
+    title: { display: true, text: 'Time' },
+    ticks: {
+      callback(value) {
+        return new Date(value).toLocaleTimeString();
+      }
+    }
+  };
+  if (weatherTimeRange && typeof weatherTimeRange.startMs === 'number' && typeof weatherTimeRange.endMs === 'number') {
+    xScale.min = weatherTimeRange.startMs;
+    xScale.max = weatherTimeRange.endMs;
+  }
+
   const config = {
     type: 'line',
     data: chartData,
@@ -381,15 +480,7 @@ function updateChartFromSeries(entries, nowMs) {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        x: {
-          type: 'linear',
-          title: { display: true, text: 'Time' },
-          ticks: {
-            callback(value) {
-              return new Date(value).toLocaleTimeString();
-            }
-          }
-        },
+        x: xScale,
         y: { type: 'linear', position: 'left', suggestedMin: 0, suggestedMax: 100, title: { display: true, text: 'Clouds (%)' } },
         y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, suggestedMin: 0, suggestedMax: 11, title: { display: true, text: 'UV Index' } }
       },
@@ -458,35 +549,27 @@ async function fetchAndRenderWeather() {
         })).filter(entry => entry.clouds !== null || entry.uvi !== null);
 
         const allEntries = chartEntries.concat(futureEntries).sort((a, b) => a.ts - b.ts);
+        weatherTimeRange = {
+          startMs: allEntries.length ? allEntries[0].ts : Date.now() - 6 * 60 * 60 * 1000,
+          endMs: allEntries.length ? allEntries[allEntries.length - 1].ts : Date.now(),
+        };
         updateChartFromSeries(allEntries, Date.now());
-        // Draw sparklines for power values
+        // Draw sparklines for power values and render the larger power chart
         try {
           const keys = { dum: 'Dům', fve: 'FVE', baterie: 'Baterie' };
           for (const [cid, key] of Object.entries(keys)) {
-            const series = pastTimestamps.map(t => {
-              let best = null; let bestDiff = Infinity;
-              for (const row of rows) {
-                if (!row || typeof row.ts !== 'number') continue;
-                const d = Math.abs(row.ts - t);
-                if (d < bestDiff) { bestDiff = d; best = row; }
-              }
-              if (best && best.power && best.power[key]) {
-                const m = (best.power[key] || '').toString().match(/[-+]?\d+[,.]?\d*/);
-                return m ? Number(m[0].replace(',', '.')) : null;
-              }
-              return null;
-            });
+            const series = rows
+              .filter(row => row && row.power)
+              .map(row => parseNumericValue(row.power[key]));
             drawSparkline('spark-' + cid, series);
-            // update sample count display
-            try {
-              const cnt = series.filter(x => x !== null && typeof x === 'number').length;
-              const el = document.getElementById('sparkcount-' + cid);
-              if (el) el.textContent = `samples: ${cnt}`;
-            } catch (e) {}
+            const cnt = series.filter(x => x !== null && typeof x === 'number').length;
+            const el = document.getElementById('sparkcount-' + cid);
+            if (el) el.textContent = `samples: ${cnt}`;
           }
         } catch (e) {
           console.error('sparkline draw failed', e);
         }
+        updatePowerChart(rows, Date.now());
       } catch (err) {
         console.error('fetch metrics failed', err);
         updateChartFromHourly(hourly);
@@ -501,10 +584,124 @@ async function fetchAndRenderWeather() {
             if (el) el.textContent = 'samples: 0';
           }
         } catch (e) {}
+        updatePowerChart([], Date.now());
       }
     }
   } catch (err) {
     console.error('fetchAndRenderWeather error', err);
+  }
+}
+
+function updatePowerChart(rows, nowMs) {
+  const ctx = document.getElementById('powerChart').getContext('2d');
+  if (!ctx) return;
+  if (window.Chart === undefined) return;
+
+  const powerKeys = [
+    { label: 'Dům', field: 'Dům', borderColor: 'rgba(54,162,235,1)' },
+    { label: 'FVE', field: 'FVE', borderColor: 'rgba(255,159,64,1)' },
+    { label: 'Baterie', field: 'Baterie', borderColor: 'rgba(153,102,255,1)' },
+    { label: 'Síť', field: 'Síť', borderColor: 'rgba(75,192,192,1)' },
+  ];
+
+  const datasets = powerKeys.map(({ label, field, borderColor }) => ({
+    label,
+    data: buildPowerSeries(rows, field),
+    borderColor,
+    backgroundColor: borderColor.replace(/rgba\((\d+),(\d+),(\d+),.*\)/, 'rgba($1,$2,$3,0.15)'),
+    tension: 0.2,
+    fill: false,
+    parsing: false,
+    spanGaps: true,
+    pointRadius: 2,
+  })).filter(ds => ds.data && ds.data.length);
+
+  const plugRanges = buildPlugRanges(rows);
+
+  const pluginPlugState = {
+    id: 'plugStateShade',
+    beforeDraw(chart) {
+      const { ctx, chartArea: ca, scales } = chart;
+      const xScale = scales.x;
+      ctx.save();
+      for (const range of plugRanges) {
+        const left = xScale.getPixelForValue(range.startMs);
+        const right = xScale.getPixelForValue(range.endMs);
+        if (isNaN(left) || isNaN(right)) continue;
+        ctx.fillStyle = range.state === 'on' ? 'rgba(40,167,69,0.15)' : 'rgba(117,117,117,0.08)';
+        ctx.fillRect(left, ca.top, right - left, ca.bottom - ca.top);
+      }
+      ctx.restore();
+    }
+  };
+
+  const pluginCurrentLine = {
+    id: 'currentLine',
+    afterDraw(chart) {
+      const { ctx, chartArea: ca, scales } = chart;
+      const xScale = scales.x;
+      const x = xScale.getPixelForValue(nowMs);
+      if (x === null || x === undefined || isNaN(x)) return;
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, ca.top);
+      ctx.lineTo(x, ca.bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  const chartData = {
+    datasets,
+  };
+
+  const xScale = {
+    type: 'linear',
+    title: { display: true, text: 'Time' },
+    ticks: {
+      callback(value) {
+        return new Date(value).toLocaleTimeString();
+      }
+    }
+  };
+  if (weatherTimeRange && typeof weatherTimeRange.startMs === 'number' && typeof weatherTimeRange.endMs === 'number') {
+    xScale.min = weatherTimeRange.startMs;
+    xScale.max = weatherTimeRange.endMs;
+  }
+
+  const config = {
+    type: 'line',
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: xScale,
+        y: {
+          type: 'linear',
+          title: { display: true, text: 'Power' },
+          beginAtZero: true,
+        }
+      },
+      plugins: {
+        legend: { position: 'top' }
+      }
+    },
+    plugins: [pluginPlugState, pluginCurrentLine]
+  };
+
+  if (powerChart) {
+    powerChart.destroy();
+    powerChart = null;
+  }
+
+  try {
+    powerChart = new Chart(ctx, config);
+  } catch (err) {
+    console.error('Failed to create power Chart:', err);
   }
 }
 

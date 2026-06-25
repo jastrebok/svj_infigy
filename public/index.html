@@ -105,8 +105,14 @@
       </table>
     </div>
 
-    <div style="margin-top:18px; height:240px;">
-      <canvas id="weatherChart" width="640" height="240" style="width:100%; height:240px; background:#fff; border:1px solid #eee;"></canvas>
+    <div style="margin-top:18px;">
+      <div style="height:240px; margin-bottom:12px;">
+        <canvas id="weatherChart" width="640" height="240" style="width:100%; height:240px; background:#fff; border:1px solid #eee;"></canvas>
+      </div>
+      <div style="margin-bottom:6px; font-size:14px; font-weight:600; color:var(--text);">Power overview (Dům / FVE / Baterie / Síť) with plug on/off shading</div>
+      <div style="height:220px;">
+        <canvas id="powerChart" width="640" height="220" style="width:100%; height:220px; background:#fff; border:1px solid #eee;"></canvas>
+      </div>
       <div id="chart-error" style="color:#900; display:none; margin-top:6px"></div>
     </div>
 
