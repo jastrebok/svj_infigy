@@ -1,0 +1,64 @@
+[
+  {
+    "id": "turn_on_plug",
+    "label": "Turn On Plug",
+    "description": "Ensure the plug is turned on by checking the plug switch on the plug page.",
+    "playwright_steps": [
+      "goto /plug",
+      "wait for selector input[type=\"checkbox\"].MuiSwitch-input",
+      "if not checked -> check()",
+      "save screenshot"
+    ],
+    "handler": "checkPlug",
+    "enabled": true
+  },
+  {
+    "id": "turn_off_plug",
+    "label": "Turn Off Plug",
+    "description": "Ensure the plug is turned off by unchecking the plug switch on the plug page.",
+    "playwright_steps": [
+      "goto /plug",
+      "wait for selector input[type=\"checkbox\"].MuiSwitch-input",
+      "if checked -> uncheck()",
+      "save screenshot"
+    ],
+    "handler": "uncheckPlug",
+    "enabled": true
+  },
+  {
+    "id": "toggle_plug",
+    "label": "Toggle Plug",
+    "description": "Toggle the plug switch state (on -> off or off -> on).",
+    "playwright_steps": [
+      "goto /plug",
+      "wait for selector input[type=\"checkbox\"].MuiSwitch-input",
+      "click the switch element",
+      "save screenshot"
+    ],
+    "handler": "togglePlug",
+    "enabled": true
+  },
+  {
+    "id": "refresh_power_data",
+    "label": "Refresh Power Data",
+    "description": "Open the general/power tab and extract current power readings.",
+    "playwright_steps": [
+      "goto /",
+      "open 'Obecné' tab if present",
+      "extract numeric power values",
+      "save screenshot"
+    ],
+    "handler": "extractPowerData",
+    "enabled": true
+  },
+  {
+    "id": "take_screenshot",
+    "label": "Take Screenshot",
+    "description": "Capture a full-page screenshot of the current page for debugging.",
+    "playwright_steps": [
+      "saveScreenshot(page, '<name>')"
+    ],
+    "handler": "saveScreenshot",
+    "enabled": true
+  }
+]

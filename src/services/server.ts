@@ -9,25 +9,94 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Passive weather poll when controller is not running
+const PASSIVE_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+let passiveTimer: NodeJS.Timeout | null = null;
+let passiveNextFetchAt: number | null = null;
+
+function startPassive() {
+  if (passiveTimer) return;
+  passiveNextFetchAt = Date.now() + PASSIVE_INTERVAL_MS;
+  passiveTimer = setInterval(async () => {
+    try {
+      await controller.fetchWeatherNow();
+    } catch (err) {
+      console.warn('Passive fetch failed:', err);
+    } finally {
+      passiveNextFetchAt = Date.now() + PASSIVE_INTERVAL_MS;
+    }
+  }, PASSIVE_INTERVAL_MS);
+  console.log('Passive weather polling started. intervalMs=', PASSIVE_INTERVAL_MS);
+}
+
+function stopPassive() {
+  if (!passiveTimer) return;
+  clearInterval(passiveTimer);
+  passiveTimer = null;
+  passiveNextFetchAt = null;
+  console.log('Passive weather polling stopped');
+}
+import { query as queryMetrics } from './storage';
+
 // API
 app.get('/api/status', (_req, res) => {
-  res.json(controller.status());
+  const base = controller.status();
+  res.json(Object.assign(base, {
+    controllerRunning: controller.isRunning(),
+    passiveNextFetchAt,
+    passiveIntervalMs: PASSIVE_INTERVAL_MS,
+  }));
 });
 
+app.get('/api/metrics', async (req, res) => {
+  try {
+    const sinceParam = req.query.since;
+    let since = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    if (sinceParam) {
+      const n = Number(sinceParam);
+      if (!Number.isNaN(n)) since = n;
+    }
+    const rows = await queryMetrics(since);
+    res.json({ ok: true, rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
 app.post('/api/start', (_req, res) => {
   controller.start();
+  // controller is active -> stop passive polling if running
+  stopPassive();
   res.json({ ok: true });
 });
 
 app.post('/api/stop', (_req, res) => {
   controller.stop();
+  // start passive polling when controller stopped
+  startPassive();
   res.json({ ok: true });
 });
 
 app.post('/api/force', async (_req, res) => {
   try {
-    await controller.forceAction();
+    const actionId = (_req && _req.body && typeof _req.body.actionId === 'string') ? _req.body.actionId : undefined;
+    await controller.forceAction(actionId);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// Return available force actions (loaded from saved config)
+app.get('/api/actions', async (_req, res) => {
+  try {
+    const cfgPath = path.join(__dirname, '..', 'support', 'actions-config.json');
+    const exists = await new Promise(resolve => fs.exists(cfgPath, exists => resolve(exists)));
+    if (!exists) return res.json({ ok: true, actions: [] });
+    const raw = await fs.promises.readFile(cfgPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    // ensure array
+    const actions = Array.isArray(parsed) ? parsed : [];
+    res.json({ ok: true, actions });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });
   }
@@ -104,3 +173,5 @@ app.listen(port, () => {
 });
 
 // If started directly, don't auto-start the controller; let user control via UI
+// Start passive polling by default when controller is not running
+if (!controller.isRunning()) startPassive();

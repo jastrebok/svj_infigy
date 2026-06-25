@@ -1,4 +1,5 @@
-import { login, runAction, extractPowerData } from './playwrightActions';
+import { login, runAction, extractPowerData, extractPlugStatus, performActionById } from './playwrightActions';
+import { appendEntry } from './storage';
 import { fetchWeather } from './weatherAPI';
 import fs from 'fs';
 import path from 'path';
@@ -27,6 +28,7 @@ export class SolarHousekeeper {
   private latestHourly: { dt: number; clouds?: number; uvi?: number; isDay?: boolean }[] | null = null;
   private latestNightRanges: { startMs: number; endMs: number }[] | null = null;
   private latestPower: Record<string, string | null> | null = null;
+  private latestPlug: string | null = null;
   private page: Page | null = null;
   private browser: Browser | null = null;
   private logsDir = path.join(__dirname, '..', '..', 'logs');
@@ -58,7 +60,13 @@ export class SolarHousekeeper {
       actionCooldownMs: this.actionCooldownMs,
       latestWeather: this.latestWeather,
       latestPower: this.latestPower,
+      running: !!this.timer,
+      latestPlug: this.latestPlug,
     };
+  }
+
+  isRunning() {
+    return !!this.timer;
   }
 
   private setState(s: State) {
@@ -139,7 +147,7 @@ export class SolarHousekeeper {
     console.log('Solar Housekeeper stopped');
   }
 
-  async forceAction() {
+  async forceAction(actionId?: string) {
     if (!this.page) {
       console.warn('No page to run action on; will try to login first');
       await this.checkOnce();
@@ -148,7 +156,11 @@ export class SolarHousekeeper {
     if (this.page) {
       this.setState(State.Busy);
       try {
-        await runAction(this.page);
+        if (typeof actionId === 'string' && actionId.length > 0) {
+          await performActionById(actionId, this.page);
+        } else {
+          await runAction(this.page);
+        }
       } catch (err) {
         console.error('forceAction error:', err);
         this.setState(State.Error);
@@ -234,6 +246,11 @@ export class SolarHousekeeper {
       try {
         if (this.page) {
           this.latestPower = await extractPowerData(this.page);
+          try {
+            this.latestPlug = await extractPlugStatus(this.page);
+          } catch (e) {
+            console.warn('extractPlugStatus failed:', e);
+          }
           void this.appendLog(JSON.stringify({ ts: nowMs, kind: 'power', power: this.latestPower }));
         } else {
           // ephemeral login to grab power info
@@ -241,6 +258,11 @@ export class SolarHousekeeper {
             const { browser, page } = await login();
             try {
               this.latestPower = await extractPowerData(page);
+              try {
+                this.latestPlug = await extractPlugStatus(page);
+              } catch (e) {
+                console.warn('extractPlugStatus ephemeral failed:', e);
+              }
               void this.appendLog(JSON.stringify({ ts: nowMs, kind: 'power', power: this.latestPower }));
             } finally {
               await browser.close();
@@ -251,6 +273,18 @@ export class SolarHousekeeper {
         }
       } catch (err) {
         console.warn('Error extracting power data:', err);
+      }
+
+      // append a sample to time-series storage (weather + power + plug)
+      try {
+        await appendEntry({
+          ts: nowMs,
+          weather: this.latestWeather,
+          power: this.latestPower,
+          plug: this.latestPlug,
+        });
+      } catch (e) {
+        console.warn('Failed to append timeseries sample:', e);
       }
     } catch (err) {
       console.warn('Error fetching latest weather:', err);

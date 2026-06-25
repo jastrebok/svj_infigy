@@ -102,6 +102,86 @@ export async function runAction(page: Page): Promise<void> {
   }
 }
 
+export async function performActionById(actionId: string | undefined, page: Page): Promise<any> {
+  const checkboxSelector = 'input[type="checkbox"].MuiSwitch-input';
+  switch (actionId) {
+    case 'turn_on_plug':
+      try {
+        await page.goto('https://app.infigy.cz/plug', { waitUntil: 'networkidle' });
+        await saveScreenshot(page, 'plug-page-action-turn-on');
+        try {
+          const checked = await page.isChecked(checkboxSelector);
+          if (!checked) {
+            await page.check(checkboxSelector);
+            await saveScreenshot(page, 'plug-turned-on');
+          }
+        } catch (e) {
+          console.warn('turn_on_plug: checkbox not found', e);
+        }
+      } catch (e) {
+        console.warn('turn_on_plug failed', e);
+      }
+      return { ok: true };
+    case 'turn_off_plug':
+      try {
+        await page.goto('https://app.infigy.cz/plug', { waitUntil: 'networkidle' });
+        await saveScreenshot(page, 'plug-page-action-turn-off');
+        try {
+          const checked = await page.isChecked(checkboxSelector);
+          if (checked) {
+            await page.uncheck(checkboxSelector);
+            await saveScreenshot(page, 'plug-turned-off');
+          }
+        } catch (e) {
+          console.warn('turn_off_plug: checkbox not found', e);
+        }
+      } catch (e) {
+        console.warn('turn_off_plug failed', e);
+      }
+      return { ok: true };
+    case 'toggle_plug':
+      try {
+        await page.goto('https://app.infigy.cz/plug', { waitUntil: 'networkidle' });
+        await saveScreenshot(page, 'plug-page-action-toggle');
+        try {
+          await page.click(checkboxSelector);
+          await saveScreenshot(page, 'plug-toggled');
+        } catch (e) {
+          console.warn('toggle_plug: click failed', e);
+        }
+      } catch (e) {
+        console.warn('toggle_plug failed', e);
+      }
+      return { ok: true };
+    case 'refresh_power_data':
+      try {
+        const data = await extractPowerData(page);
+        await saveScreenshot(page, 'refresh-power-data');
+        return { ok: true, data };
+      } catch (e) {
+        console.warn('refresh_power_data failed', e);
+        return { ok: false, error: String(e) };
+      }
+    case 'take_screenshot':
+      try {
+        await saveScreenshot(page, 'manual');
+        return { ok: true };
+      } catch (e) {
+        console.warn('take_screenshot failed', e);
+        return { ok: false, error: String(e) };
+      }
+    default:
+      // fallback: run existing runAction behavior
+      try {
+        await runAction(page);
+        return { ok: true };
+      } catch (e) {
+        console.warn('default action failed', e);
+        return { ok: false, error: String(e) };
+      }
+  }
+}
+
 export async function extractPowerData(page: Page): Promise<Record<string, string | null>> {
   // map internal keys to possible visible label variants (support multiple languages)
   const mappings: Record<string, string[]> = {
@@ -168,8 +248,68 @@ export async function extractPowerData(page: Page): Promise<Record<string, strin
     result[key] = foundVal;
   }
 
+  // Fallback: if some keys (e.g. FVE) are still null, try scanning numeric power values
+  const missing = Object.keys(result).filter(k => result[k] == null);
+  if (missing.length > 0) {
+    try {
+      const numericLoc = page.locator('text=/[-+]?\\d+[,.]?\\d*\\s*(kW|W)/i');
+      const count = await numericLoc.count();
+      for (let i = 0; i < count; i++) {
+        try {
+          const el = numericLoc.nth(i);
+          const valueText = (await el.textContent()) || '';
+          // get surrounding text (ancestor container text) to find a label
+          const surrounding = await el.evaluate((node) => {
+            let cur: HTMLElement | null = node.parentElement;
+            for (let depth = 0; depth < 4 && cur; depth++) {
+              const txt = (cur.textContent || '').trim();
+              if (txt && txt.length > 0) return txt;
+              cur = cur.parentElement;
+            }
+            return (node.textContent || '').trim();
+          });
+
+          const s = (surrounding || '').toLowerCase();
+          for (const key of missing) {
+            const variants = mappings[key];
+            for (const v of variants) {
+              if (s.indexOf(v.toLowerCase()) !== -1) {
+                result[key] = valueText.trim();
+                // remove assigned from missing
+                const idx = missing.indexOf(key);
+                if (idx !== -1) missing.splice(idx, 1);
+                break;
+              }
+            }
+            if (result[key]) break;
+          }
+          if (missing.length === 0) break;
+        } catch (e) {
+          // continue
+        }
+      }
+    } catch (e) {
+      // ignore fallback errors
+      console.warn('extractPowerData fallback failed:', e);
+    }
+  }
+
   console.log('extractPowerData ->', result);
   return result;
+}
+
+export async function extractPlugStatus(page: Page): Promise<string | null> {
+  try {
+    const selector = 'input[type="checkbox"].MuiSwitch-input';
+    const count = await page.locator(selector).count();
+    if (count === 0) return null;
+    // isChecked returns boolean; convert to human-readable
+    const checked = await page.isChecked(selector);
+    return checked ? 'on' : 'off';
+  } catch (err) {
+    console.warn('extractPlugStatus failed:', err);
+    return null;
+  }
 }
 
 async function run() {

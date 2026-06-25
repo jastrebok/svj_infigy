@@ -13,6 +13,7 @@
         <button id="nav-status" class="active">Status</button>
         <button id="nav-logs">Logs</button>
         <button id="nav-screenshots">Screenshots</button>
+        <button id="nav-config">Config</button>
       </div>
     </div>
 
@@ -21,10 +22,21 @@
     <div>
       <button id="start">Start</button>
       <button id="stop">Stop</button>
+      <label style="margin-left:8px">
+        <select id="force-action-select" style="margin-right:6px">
+          <option value="">Default action</option>
+        </select>
+      </label>
       <button id="force">Force Action</button>
       <button id="refresh">Refresh</button>
-      <button id="fetch-weather">Fetch Weather Now</button>
       <button id="toggle-browser-view">Browser view: off</button>
+      <label style="margin-left:12px">History:
+        <select id="history-select">
+          <option value="6">6h</option>
+          <option value="12" selected>12h</option>
+          <option value="24">24h</option>
+        </select>
+      </label>
     </div>
 
     <div class="status">
@@ -33,6 +45,8 @@
       <div><strong>Interval (ms):</strong> <span id="interval">n/a</span></div>
       <div><strong>Action cooldown (ms):</strong> <span id="cooldown">n/a</span></div>
       <div style="margin-top:12px">
+      <div><strong>Next passive refresh:</strong> <span id="next-refresh">n/a</span> — <span id="countdown">—</span></div>
+      
         <strong>Weather:</strong>
         <table class="weather-compact" style="margin-top:8px">
           <tr>
@@ -51,15 +65,37 @@
       <table style="width:100%; margin-top:8px; border-collapse:collapse;">
         <tr>
           <td style="border:1px solid #eee; padding:6px">Dům</td>
-          <td id="power-dum" style="border:1px solid #eee; padding:6px">n/a</td>
+          <td style="border:1px solid #eee; padding:6px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span id="power-dum">n/a</span>
+              <canvas id="spark-dum" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+            </div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-dum">samples: 0</div>
+          </td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:6px">FVE</td>
-          <td id="power-fve" style="border:1px solid #eee; padding:6px">n/a</td>
+          <td style="border:1px solid #eee; padding:6px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span id="power-fve">n/a</span>
+              <canvas id="spark-fve" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+            </div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-fve">samples: 0</div>
+          </td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:6px">Baterie</td>
-          <td id="power-baterie" style="border:1px solid #eee; padding:6px">n/a</td>
+          <td style="border:1px solid #eee; padding:6px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span id="power-baterie">n/a</span>
+              <canvas id="spark-baterie" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+            </div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-baterie">samples: 0</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:6px">Zásuvka</td>
+          <td id="power-plug" style="border:1px solid #eee; padding:6px">n/a</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:6px">Síť</td>
@@ -87,6 +123,15 @@
         <button id="refresh-screenshots">Refresh Screenshots</button>
       </div>
       <div id="screenshots-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px"></div>
+    </div>
+
+    <div id="view-config" style="display:none">
+      <div style="margin-top:8px; display:flex; align-items:center; gap:8px">
+        <button id="refresh-config">Refresh Config</button>
+      </div>
+      <div id="config-actions" style="margin-top:12px">
+        <!-- actions config table will be rendered here -->
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

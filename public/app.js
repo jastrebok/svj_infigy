@@ -40,16 +40,50 @@ async function refresh() {
       setTextIf('power-fve', s.latestPower['FVE'] ?? 'n/a');
       setTextIf('power-baterie', s.latestPower['Baterie'] ?? 'n/a');
       setTextIf('power-sit', s.latestPower['Síť'] ?? 'n/a');
+      // plug status provided separately as latestPlug
+      setTextIf('power-plug', s.latestPlug ?? 'n/a');
     } else {
       setTextIf('power-dum', 'n/a');
       setTextIf('power-fve', 'n/a');
       setTextIf('power-baterie', 'n/a');
       setTextIf('power-sit', 'n/a');
+      setTextIf('power-plug', 'n/a');
+    }
+
+    // Passive polling info (server provides passiveNextFetchAt when controller not running)
+    if (!s.controllerRunning && s.passiveNextFetchAt) {
+      setTextIf('next-refresh', ts(s.passiveNextFetchAt));
+      window.__passiveNextFetchAt = s.passiveNextFetchAt;
+    } else {
+      setTextIf('next-refresh', 'n/a');
+      window.__passiveNextFetchAt = null;
+      setTextIf('countdown', '—');
     }
   } catch (err) {
     console.error(err);
   }
 }
+
+// countdown updater (1s) reading passiveNextFetchAt set by refresh()
+function updateCountdown() {
+  const next = window.__passiveNextFetchAt || null;
+  if (!next) {
+    setTextIf('countdown', '—');
+    return;
+  }
+  const remMs = next - Date.now();
+  if (remMs <= 0) {
+    setTextIf('countdown', '00:00');
+    return;
+  }
+  const sec = Math.floor(remMs / 1000);
+  const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+  const ss = String(sec % 60).padStart(2, '0');
+  setTextIf('countdown', `${mm}:${ss}`);
+}
+
+// run countdown updater every second
+setInterval(updateCountdown, 1000);
 
 async function refreshBrowserViewToggle() {
   try {
@@ -160,10 +194,32 @@ function updateChartFromHourly(hourly) {
     }
   };
 
+  const pluginCurrentLine = {
+    id: 'currentLine',
+    afterDraw(chart, args, options) {
+      const { ctx, chartArea: ca, scales } = chart;
+      const xScale = scales.x;
+      const idx = chart.currentIndex;
+      if (typeof idx !== 'number' || idx < 0) return;
+      const x = xScale.getPixelForValue(idx);
+      if (!x || isNaN(x)) return;
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = options && options.color ? options.color : 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, ca.top);
+      ctx.lineTo(x, ca.bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
   if (weatherChart) {
     weatherChart.data.labels = labels;
     weatherChart.data.datasets[0].data = clouds;
     weatherChart.data.datasets[1].data = uvis;
+    setChartNowIndex(hourly);
     weatherChart.update();
     return;
   }
@@ -219,13 +275,138 @@ function updateChartFromHourly(hourly) {
           legend: { position: 'top' }
         }
       },
-      plugins: [pluginNight]
+      plugins: [pluginNight, pluginCurrentLine]
     });
+      setChartNowIndex(hourly);
   } catch (err) {
     showChartError('Failed to create Chart: ' + String(err));
     console.error(err);
   }
 }
+
+// Render chart from precomputed series arrays
+function updateChartFromSeries(timestamps, labels, clouds, uvis, isDayFlags) {
+  if (!labels || !labels.length) return;
+  const ctx = document.getElementById('weatherChart').getContext('2d');
+  if (!ctx) { showChartError('Canvas context not available'); return; }
+  if (window.Chart === undefined) { showChartError('Chart.js not loaded'); return; }
+
+  // compute night ranges as index ranges using isDay flags
+  const nightIndexRanges = [];
+  let curStartIdx = null;
+  for (let i = 0; i < isDayFlags.length; i++) {
+    if (!isDayFlags[i]) {
+      if (curStartIdx === null) curStartIdx = i;
+    } else {
+      if (curStartIdx !== null) {
+        nightIndexRanges.push({ startIndex: curStartIdx, endIndex: i - 1 });
+        curStartIdx = null;
+      }
+    }
+  }
+  if (curStartIdx !== null) nightIndexRanges.push({ startIndex: curStartIdx, endIndex: isDayFlags.length - 1 });
+
+  const pluginNight = {
+    id: 'nightShade',
+    beforeDraw(chart, args, options) {
+      const { ctx, chartArea: ca, scales } = chart;
+      const xScale = scales.x;
+      ctx.save();
+      for (const r of nightIndexRanges) {
+        const left = xScale.getPixelForValue(r.startIndex);
+        const right = xScale.getPixelForValue(r.endIndex);
+        const next = xScale.getPixelForValue(r.endIndex + 1);
+        const width = (next && !isNaN(next) ? next : right) - left;
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(left, ca.top, width, ca.bottom - ca.top);
+      }
+      ctx.restore();
+    }
+  };
+
+  const pluginCurrentLine = {
+    id: 'currentLine',
+    afterDraw(chart, args, options) {
+      const { ctx, chartArea: ca, scales } = chart;
+      const xScale = scales.x;
+      const idx = chart.currentIndex;
+      if (typeof idx !== 'number' || idx < 0) return;
+      const x = xScale.getPixelForValue(idx);
+      if (!x || isNaN(x)) return;
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = options && options.color ? options.color : 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, ca.top);
+      ctx.lineTo(x, ca.bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  if (weatherChart) {
+    weatherChart.data.labels = labels;
+    weatherChart.data.datasets[0].data = clouds;
+    weatherChart.data.datasets[1].data = uvis;
+    weatherChart.update();
+    weatherChart.timestamps = timestamps;
+    return;
+  }
+
+  try {
+    weatherChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Clouds (%)',
+            data: clouds,
+            borderColor: 'rgba(54,162,235,1)',
+            backgroundColor: 'rgba(54,162,235,0.2)',
+            yAxisID: 'y',
+            tension: 0.2,
+          },
+          {
+            label: 'UV Index',
+            data: uvis,
+            borderColor: 'rgba(255,99,132,1)',
+            backgroundColor: 'rgba(255,99,132,0.2)',
+            yAxisID: 'y1',
+            tension: 0.2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { type: 'category' },
+          y: {
+            type: 'linear', position: 'left', suggestedMin: 0, suggestedMax: 100, title: { display: true, text: 'Clouds (%)' }
+          },
+          y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, suggestedMin: 0, suggestedMax: 11, title: { display: true, text: 'UV Index' } }
+        },
+        plugins: { legend: { position: 'top' } }
+      },
+      plugins: [pluginNight, pluginCurrentLine]
+    });
+    weatherChart.timestamps = timestamps;
+  } catch (err) {
+    showChartError('Failed to create Chart: ' + String(err));
+    console.error(err);
+  }
+}
+
+  // compute and set current index for chart (nearest hour >= now)
+  function setChartNowIndex(hourly) {
+    if (!weatherChart || !hourly || !hourly.length) return;
+    const nowMs = Date.now();
+    let idx = hourly.findIndex(h => (h.dt * 1000) >= nowMs);
+    if (idx === -1) idx = hourly.length - 1;
+    weatherChart.currentIndex = idx;
+  }
 
 async function fetchAndRenderWeather() {
   try {
@@ -235,10 +416,157 @@ async function fetchAndRenderWeather() {
       const summary = payload.summary || payload;
       const hourly = payload.hourly || [];
       updateWeatherUIFromSummary(summary);
-      updateChartFromHourly(hourly);
+      // Fetch N hours of recent metrics (configurable) and combine
+      try {
+        const histHoursEl = document.getElementById('history-select');
+        const histHours = histHoursEl ? Number(histHoursEl.value) : 12;
+        const since = Date.now() - (histHours * 60 * 60 * 1000);
+        const m = await api('/api/metrics?since=' + since);
+        const rows = (m && m.ok && m.rows) ? m.rows : [];
+
+        // Build past N hourly timestamps aligned to hour
+        const now = Date.now();
+        const startHour = Math.floor((now - histHours * 60 * 60 * 1000) / 3600000) * 3600000;
+        const pastCount = histHours;
+        const pastTimestamps = [];
+        for (let i = 0; i < pastCount; i++) pastTimestamps.push(startHour + i * 3600000);
+
+        const pastLabels = pastTimestamps.map(t => new Date(t).toLocaleString());
+        const pastClouds = pastTimestamps.map(t => {
+          // find closest row by ts
+          let best = null;
+          let bestDiff = Infinity;
+          for (const row of rows) {
+            if (!row || typeof row.ts !== 'number') continue;
+            const d = Math.abs(row.ts - t);
+            if (d < bestDiff) { bestDiff = d; best = row; }
+          }
+          if (best && best.weather && typeof best.weather.clouds === 'number') return best.weather.clouds; else return null;
+        });
+        const pastUvis = pastTimestamps.map(t => {
+          let best = null; let bestDiff = Infinity;
+          for (const row of rows) {
+            if (!row || typeof row.ts !== 'number') continue;
+            const d = Math.abs(row.ts - t);
+            if (d < bestDiff) { bestDiff = d; best = row; }
+          }
+          if (best && best.weather && typeof best.weather.uvi === 'number') return best.weather.uvi; else return null;
+        });
+
+        // Future forecast series (hourly)
+        const futureTimestamps = hourly.map(h => h.dt * 1000);
+        const futureLabels = futureTimestamps.map(t => new Date(t).toLocaleString());
+        const futureClouds = hourly.map(h => (typeof h.clouds === 'number' ? h.clouds : null));
+        const futureUvis = hourly.map(h => (typeof h.uvi === 'number' ? h.uvi : null));
+        const futureIsDay = hourly.map(h => !!h.isDay);
+
+        // build combined arrays
+        const timestamps = pastTimestamps.concat(futureTimestamps);
+        const labels = pastLabels.concat(futureLabels);
+        const clouds = pastClouds.concat(futureClouds);
+        const uvis = pastUvis.concat(futureUvis);
+
+        // isDay flags: estimate for past based on hour (6..18)
+        const pastIsDay = pastTimestamps.map(t => {
+          const hr = new Date(t).getHours();
+          return hr >= 6 && hr < 18;
+        });
+        const isDayFlags = pastIsDay.concat(futureIsDay);
+
+        updateChartFromSeries(timestamps, labels, clouds, uvis, isDayFlags);
+        // set now index to first timestamp >= now
+        const nowIdx = timestamps.findIndex(t => t >= Date.now());
+        if (weatherChart) weatherChart.currentIndex = (nowIdx === -1 ? timestamps.length - 1 : nowIdx);
+        // Draw sparklines for power values
+        try {
+          const keys = { dum: 'Dům', fve: 'FVE', baterie: 'Baterie' };
+          for (const [cid, key] of Object.entries(keys)) {
+            const series = pastTimestamps.map(t => {
+              let best = null; let bestDiff = Infinity;
+              for (const row of rows) {
+                if (!row || typeof row.ts !== 'number') continue;
+                const d = Math.abs(row.ts - t);
+                if (d < bestDiff) { bestDiff = d; best = row; }
+              }
+              if (best && best.power && best.power[key]) {
+                const m = (best.power[key] || '').toString().match(/[-+]?\d+[,.]?\d*/);
+                return m ? Number(m[0].replace(',', '.')) : null;
+              }
+              return null;
+            });
+            drawSparkline('spark-' + cid, series);
+            // update sample count display
+            try {
+              const cnt = series.filter(x => x !== null && typeof x === 'number').length;
+              const el = document.getElementById('sparkcount-' + cid);
+              if (el) el.textContent = `samples: ${cnt}`;
+            } catch (e) {}
+          }
+        } catch (e) {
+          console.error('sparkline draw failed', e);
+        }
+      } catch (err) {
+        console.error('fetch metrics failed', err);
+        updateChartFromHourly(hourly);
+        // render empty sparklines as placeholder
+        drawSparkline('spark-dum', []);
+        drawSparkline('spark-fve', []);
+        drawSparkline('spark-baterie', []);
+        try {
+          const els = ['dum','fve','baterie'];
+          for (const id of els) {
+            const el = document.getElementById('sparkcount-' + id);
+            if (el) el.textContent = 'samples: 0';
+          }
+        } catch (e) {}
+      }
     }
   } catch (err) {
     console.error('fetchAndRenderWeather error', err);
+  }
+}
+
+function drawSparkline(canvasId, values) {
+  try {
+    const c = document.getElementById(canvasId);
+    if (!c || !c.getContext) return;
+    const ctx = c.getContext('2d');
+    const w = c.width; const h = c.height;
+    ctx.clearRect(0,0,w,h);
+    const nums = values.map(v => (v === null || typeof v !== 'number' || isNaN(v)) ? null : v);
+    const valid = nums.filter(x => x !== null);
+    if (valid.length === 0) {
+      // draw subtle empty indicator
+      ctx.strokeStyle = '#ddd';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4,2]);
+      ctx.beginPath();
+      ctx.moveTo(0, h/2);
+      ctx.lineTo(w, h/2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#999';
+      ctx.font = '10px sans-serif';
+      ctx.fillText('n/a', 4, h - 4);
+      return;
+    }
+    const min = Math.min(...valid); const max = Math.max(...valid);
+    const range = (max - min) || 1;
+    const step = w / Math.max(1, nums.length - 1);
+    ctx.beginPath();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    let first = true;
+    for (let i = 0; i < nums.length; i++) {
+      const v = nums[i];
+      const x = Math.round(i * step);
+      if (v === null) { first = true; continue; }
+      const y = h - Math.round(((v - min) / range) * (h - 4)) - 2;
+      if (first) { ctx.moveTo(x,y); first = false; } else { ctx.lineTo(x,y); }
+    }
+    ctx.stroke();
+  } catch (e) {
+    // ignore
   }
 }
 
@@ -253,11 +581,40 @@ document.getElementById('stop').addEventListener('click', async () => {
 });
 
 document.getElementById('force').addEventListener('click', async () => {
-  await api('/api/force', 'POST');
-  await refresh();
+  try {
+    const sel = document.getElementById('force-action-select');
+    const actionId = sel && sel.value ? sel.value : null;
+    await fetch('/api/force', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actionId }) });
+    await refresh();
+  } catch (err) {
+    console.error('force action failed', err);
+  }
 });
 
-document.getElementById('refresh').addEventListener('click', refresh);
+async function fetchActions() {
+  try {
+    const r = await fetch('/api/actions');
+    const j = await r.json();
+    if (!j || !j.ok || !Array.isArray(j.actions)) return;
+    const sel = document.getElementById('force-action-select');
+    if (!sel) return;
+    // clear existing except default
+    const existingDefault = sel.querySelector('option[value=""]');
+    sel.innerHTML = '';
+    if (existingDefault) sel.appendChild(existingDefault);
+    for (const a of j.actions) {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.label || a.id;
+      sel.appendChild(opt);
+    }
+  } catch (err) {
+    console.error('fetchActions failed', err);
+  }
+}
+
+const refreshBtn = document.getElementById('refresh');
+if (refreshBtn) refreshBtn.addEventListener('click', async () => { await refresh(); await fetchAndRenderWeather(); });
 
 document.getElementById('toggle-browser-view').addEventListener('click', async (e) => {
   const btn = e.currentTarget;
@@ -275,13 +632,14 @@ document.getElementById('toggle-browser-view').addEventListener('click', async (
   }
 });
 
-document.getElementById('fetch-weather').addEventListener('click', async () => {
-  await fetchAndRenderWeather();
-});
+// 'Fetch Weather' button removed; use Refresh to update weather instead
+
+const histEl = document.getElementById('history-select');
+if (histEl) histEl.addEventListener('change', () => { fetchAndRenderWeather(); });
 
 // Navigation
 function showView(id) {
-  ['view-status', 'view-logs', 'view-screenshots'].forEach(v => {
+  ['view-status', 'view-logs', 'view-screenshots', 'view-config'].forEach(v => {
     const el = document.getElementById(v);
     if (el) el.style.display = (v === id) ? '' : 'none';
   });
@@ -295,6 +653,12 @@ document.getElementById('nav-logs').addEventListener('click', async () => {
 document.getElementById('nav-screenshots').addEventListener('click', async () => {
   showView('view-screenshots');
   await fetchAndShowScreenshots();
+});
+
+document.getElementById('nav-config').addEventListener('click', async () => {
+  setActiveNav('nav-config');
+  showView('view-config');
+  await fetchAndShowConfig();
 });
 
 function setActiveNav(id) {
@@ -323,6 +687,7 @@ async function fetchAndShowLogs() {
 }
 
 document.getElementById('refresh-logs').addEventListener('click', fetchAndShowLogs);
+document.getElementById('refresh-config').addEventListener('click', fetchAndShowConfig);
 
 async function fetchAndShowScreenshots() {
   try {
@@ -360,6 +725,41 @@ async function fetchAndShowScreenshots() {
   }
 }
 
+async function fetchAndShowConfig() {
+  try {
+    const r = await api('/api/actions');
+    if (!r || !r.ok) {
+      const el = document.getElementById('config-actions');
+      if (el) el.textContent = 'Failed to load config';
+      return;
+    }
+    const actions = r.actions || [];
+    const cont = document.getElementById('config-actions');
+    if (!cont) return;
+    if (!actions.length) {
+      cont.innerHTML = '<div>No actions configured.</div>';
+      return;
+    }
+    // build simple table
+    let html = '<table style="width:100%; border-collapse:collapse"><thead><tr><th style="border:1px solid #eee; padding:6px">id</th><th style="border:1px solid #eee; padding:6px">label</th><th style="border:1px solid #eee; padding:6px">description</th><th style="border:1px solid #eee; padding:6px">handler</th><th style="border:1px solid #eee; padding:6px">enabled</th></tr></thead><tbody>';
+    for (const a of actions) {
+      html += '<tr>' +
+        `<td style="border:1px solid #eee; padding:6px">${(a.id||'')}</td>` +
+        `<td style="border:1px solid #eee; padding:6px">${(a.label||'')}</td>` +
+        `<td style="border:1px solid #eee; padding:6px">${(a.description||'')}</td>` +
+        `<td style="border:1px solid #eee; padding:6px">${(a.handler||'')}</td>` +
+        `<td style="border:1px solid #eee; padding:6px">${a.enabled ? 'yes' : 'no'}</td>` +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+    cont.innerHTML = html;
+  } catch (err) {
+    console.error('fetchAndShowConfig failed', err);
+    const el = document.getElementById('config-actions');
+    if (el) el.textContent = 'Error loading config';
+  }
+}
+
 document.getElementById('refresh-screenshots').addEventListener('click', fetchAndShowScreenshots);
 
 // auto-refresh every 5s
@@ -368,3 +768,5 @@ setInterval(refresh, 5000);
 refreshBrowserViewToggle();
 // fetch + render weather chart once on load
 fetchAndRenderWeather();
+// populate force action selector
+fetchActions();
