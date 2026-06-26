@@ -33,7 +33,7 @@ export class SolarHousekeeper {
   private actionCooldownMs: number;
   private timer: NodeJS.Timeout | null = null;
   private lastActionAt = 0;
-  private latestWeather: { clouds?: number; uvi?: number; fetchedAt: number; rangeStartIso?: string; rangeEndIso?: string } | null = null;
+  private latestWeather: { clouds?: number; uvi?: number; forecast_uv_median_today?: number; forecast_uv_median_tomorrow?: number; battery_cap?: number; fetchedAt: number; rangeStartIso?: string; rangeEndIso?: string } | null = null;
   private latestHourly: { dt: number; clouds?: number; uvi?: number; isDay?: boolean }[] | null = null;
   private latestNightRanges: { startMs: number; endMs: number }[] | null = null;
   private latestPower: Record<string, string | null> | null = null;
@@ -93,6 +93,9 @@ export class SolarHousekeeper {
     try {
       const uvi = this.latestWeather?.uvi ?? null;
       const clouds = this.latestWeather?.clouds ?? null;
+      const forecast_uv_median_today = this.latestWeather?.forecast_uv_median_today ?? null;
+      const forecast_uv_median_tomorrow = this.latestWeather?.forecast_uv_median_tomorrow ?? null;
+      const battery_cap = this.latestWeather?.battery_cap ?? null;
       const power_total = this.computePowerTotal();
       const now = this.now();
       let isNight = false;
@@ -101,10 +104,10 @@ export class SolarHousekeeper {
       }
       const isDay = !isNight;
       const power = this.latestPower ?? {};
-      const fn = new Function('uvi', 'clouds', 'isDay', 'isNight', 'power_total', 'power', `return (${expr});`);
+      const fn = new Function('uvi', 'clouds', 'forecast_uv_median_today', 'forecast_uv_median_tomorrow', 'battery_cap', 'isDay', 'isNight', 'power_total', 'power', `return (${expr});`);
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      const res = fn(uvi, clouds, isDay, isNight, power_total, power);
+      const res = fn(uvi, clouds, forecast_uv_median_today, forecast_uv_median_tomorrow, battery_cap, isDay, isNight, power_total, power);
       return Boolean(res);
     } catch (err) {
       console.warn('Error evaluating scenario expression:', expr, err);
@@ -333,9 +336,65 @@ export class SolarHousekeeper {
         nightRanges.push({ startMs: curStart, endMs: (hourlyWithDay[hourlyWithDay.length - 1].dt * 1000) + 60 * 60 * 1000 });
       }
 
+      // Calculate UV forecast medians for today and tomorrow
+      // Note: median is more robust to outliers than mean
+      const now = new Date(nowMs);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrowStart = new Date(todayStart);
+      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+      const dayAfterTomorrowStart = new Date(tomorrowStart);
+      dayAfterTomorrowStart.setDate(dayAfterTomorrowStart.getDate() + 1);
+
+      const todayHours = hourlyWithDay.filter(h => {
+        const hDate = new Date(h.dt * 1000);
+        return hDate >= todayStart && hDate < tomorrowStart && h.isDay;
+      });
+      const tomorrowHours = hourlyWithDay.filter(h => {
+        const hDate = new Date(h.dt * 1000);
+        return hDate >= tomorrowStart && hDate < dayAfterTomorrowStart && h.isDay;
+      });
+
+      // Helper function to calculate median
+      const calcMedian = (values: (number | undefined)[]) => {
+        const nums = values.filter(v => typeof v === 'number') as number[];
+        if (nums.length === 0) return undefined;
+        const sorted = nums.sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      };
+
+      let forecast_uv_median_today: number | undefined;
+      if (todayHours.length > 0) {
+        const uvValues = todayHours.map(h => h.uvi);
+        const median = calcMedian(uvValues);
+        if (median !== undefined) {
+          forecast_uv_median_today = parseFloat(median.toFixed(1));
+        }
+      }
+
+      let forecast_uv_median_tomorrow: number | undefined;
+      if (tomorrowHours.length > 0) {
+        const uvValues = tomorrowHours.map(h => h.uvi);
+        const median = calcMedian(uvValues);
+        if (median !== undefined) {
+          forecast_uv_median_tomorrow = parseFloat(median.toFixed(1));
+        }
+      }
+
+      // Extract battery capacity percentage from power data
+      // Note: this is the battery capacity %, not the Baterie power reading (which is in kW)
+      let battery_cap: number | undefined;
+      const batteryCapStr = this.latestPower?.['Baterie'];
+      if (batteryCapStr) {
+        const batteryCapNum = Number(String(batteryCapStr).replace(/[^0-9.-]+/g, ''));
+        if (!Number.isNaN(batteryCapNum)) {
+          battery_cap = batteryCapNum;
+        }
+      }
+
       this.latestHourly = hourlyWithDay;
       this.latestNightRanges = nightRanges;
-      this.latestWeather = { clouds, uvi, fetchedAt: nowMs, rangeStartIso, rangeEndIso };
+      this.latestWeather = { clouds, uvi, forecast_uv_median_today, forecast_uv_median_tomorrow, battery_cap, fetchedAt: nowMs, rangeStartIso, rangeEndIso };
 
       // try to extract power data from portal using Playwright
       try {

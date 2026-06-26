@@ -31,12 +31,16 @@ async function refresh() {
       setTextIf('weather-uvi', typeof s.latestWeather.uvi === 'number' ? s.latestWeather.uvi : 'n/a');
       setTextIf('weather-range', s.latestWeather.rangeStartIso && s.latestWeather.rangeEndIso ? (s.latestWeather.rangeStartIso + ' → ' + s.latestWeather.rangeEndIso) : 'n/a');
       setTextIf('weather-fetched', s.latestWeather.fetchedAt ? ts(s.latestWeather.fetchedAt) : 'n/a');
+      setTextIf('weather-forecast-uv-today', typeof s.latestWeather.forecast_uv_median_today === 'number' ? s.latestWeather.forecast_uv_median_today.toFixed(1) : 'n/a');
+      setTextIf('weather-forecast-uv-tomorrow', typeof s.latestWeather.forecast_uv_median_tomorrow === 'number' ? s.latestWeather.forecast_uv_median_tomorrow.toFixed(1) : 'n/a');
       updateWeatherIcon(typeof s.latestWeather.clouds === 'number' ? s.latestWeather.clouds : null);
     } else {
       setTextIf('weather-clouds', 'n/a');
       setTextIf('weather-uvi', 'n/a');
       setTextIf('weather-range', 'n/a');
       setTextIf('weather-fetched', 'n/a');
+      setTextIf('weather-forecast-uv-today', 'n/a');
+      setTextIf('weather-forecast-uv-tomorrow', 'n/a');
       updateWeatherIcon(null);
     }
 
@@ -298,7 +302,8 @@ function updateChartFromHourly(hourly) {
       title: { display: true, text: 'Time' },
       ticks: {
         callback(value) {
-          return new Date(value).toLocaleTimeString();
+          const d = new Date(value);
+          return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
         }
       }
     };
@@ -342,7 +347,8 @@ function updateChartFromHourly(hourly) {
             title: { display: true, text: 'Time' },
             ticks: {
               callback(value) {
-                return new Date(value).toLocaleTimeString();
+                const d = new Date(value);
+                return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
               }
             }
           },
@@ -464,7 +470,8 @@ function updateChartFromSeries(entries, nowMs) {
     title: { display: true, text: 'Time' },
     ticks: {
       callback(value) {
-        return new Date(value).toLocaleTimeString();
+        const d = new Date(value);
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
       }
     }
   };
@@ -549,11 +556,12 @@ async function fetchAndRenderWeather() {
         })).filter(entry => entry.clouds !== null || entry.uvi !== null);
 
         const allEntries = chartEntries.concat(futureEntries).sort((a, b) => a.ts - b.ts);
+        const nowMs = Date.now();
         weatherTimeRange = {
-          startMs: allEntries.length ? allEntries[0].ts : Date.now() - 6 * 60 * 60 * 1000,
-          endMs: allEntries.length ? allEntries[allEntries.length - 1].ts : Date.now(),
+          startMs: nowMs - (histHours * 60 * 60 * 1000),
+          endMs: allEntries.length ? allEntries[allEntries.length - 1].ts : nowMs + 72 * 60 * 60 * 1000,
         };
-        updateChartFromSeries(allEntries, Date.now());
+        updateChartFromSeries(allEntries, nowMs);
         // Draw sparklines for power values and render the larger power chart
         try {
           const keys = { dum: 'Dům', fve: 'FVE', baterie: 'Baterie' };
@@ -663,7 +671,8 @@ function updatePowerChart(rows, nowMs) {
     title: { display: true, text: 'Time' },
     ticks: {
       callback(value) {
-        return new Date(value).toLocaleTimeString();
+        const d = new Date(value);
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
       }
     }
   };

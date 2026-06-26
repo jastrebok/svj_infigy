@@ -18,18 +18,23 @@ The config is a JSON array of scenario objects. Each object has:
 
 Trigger expression variables
 ----------------------------
-- `uvi`: numeric (or null)
-- `clouds`: numeric (or null)
-- `isDay`: boolean
-- `isNight`: boolean
-- `power_total`: numeric sum of numeric power readings (or null)
-- `power`: object mapping power metric keys to raw string values
+- `uvi`: numeric (or null) — current UV index
+- `clouds`: numeric (or null) — cloud coverage percentage
+- `forecast_uv_median_today`: numeric (or null) — median UV forecast for today (daytime hours)
+- `forecast_uv_median_tomorrow`: numeric (or null) — median UV forecast for tomorrow (daytime hours)
+- `battery_cap`: numeric (or null) — battery capacity percentage (0-100)
+- `isDay`: boolean — true during daytime (between sunrise/sunset)
+- `isNight`: boolean — true during nighttime
+- `power_total`: numeric (or null) — sum of all power readings in kW (Dům + FVE + Baterie + Zásuvka + Síť)
+- `power`: object mapping power metric keys to raw string values in kW
 
 Examples
 --------
-`"uvi >= 3 && (power_total === null || power_total < 500) && isDay"` — turn on plug during daytime when UVI is strong and total power is low.
+`"uvi >= 3 && (power_total === null || power_total < 50) && isDay"` — turn on plug during daytime when UVI is strong and total power is low.
 
-`"isNight && (power_total !== null && power_total > 200)"` — during night, if power production (or reported metric) is above threshold, take action.
+`"isNight && (power_total !== null && battery_cap < 50)"` — during night, if battery capacity is below 50%, take action.
+
+`"forecast_uv_median_today && battery_cap > 40 && isDay"` — morning operation: turn on plug when median UV forecast is available, battery is above 40%, and it's daytime.
 
 Security note
 -------------
