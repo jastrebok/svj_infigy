@@ -74,10 +74,72 @@ http://localhost:3000/api/metrics/line?since=1690000000000
 ```
 
 - Example import: request the last 24 hours of data from the backend and push into Influx.
-- The line-protocol export includes tags `plug` and `weather_range`, numeric fields `clouds`, `uvi`, `weather_fetchedAt`, `power_total`, and raw power values as `power_dum`, `power_fve`, `power_baterie`, `power_sit`.
+- The line-protocol export includes tags `plug` and `weather_range`, numeric fields `clouds`, `uvi`, `weather_fetchedAt`, `power_total`, and raw power values as `power_house`, `power_photovoltaics`, `power_battery`, `power_grid`.
 - The JSON endpoint returns full rows with `ts`, `weather`, `power`, and `plug` in the same format as stored in `logs/data.ndjson`.
 
 Where to edit behavior
 ----------------------
 - Add or update action implementations in `src/services/playwrightActions.ts` and entries in `src/support/actions-config.json`.
 - Add or adjust scenarios in `src/support/scenarios-config.json` and document them in `src/support/scenarios-config.md`.
+
+SolaXCloud API integration
+--------------------------
+`src/services/solaxAPI.ts` — typed client for the SolaXCloud v2 REST API.
+
+Required environment variables (`.env`):
+
+```
+SOLAX_API=https://global.solaxcloud.com
+SOLAX_API_KEY=<your token>
+SOLAX_WIFI_SN=<WiFi serial number printed on the data-logger>
+```
+
+When `SOLAX_WIFI_SN` is set the controller polls `POST /api/v2/dataAccess/realtimeInfo/get`
+every 120 s and maps the response into the same `power` object used by Playwright:
+
+| UI name          | SolaX field(s)                  |
+|------------------|---------------------------------|
+| Photovoltaics    | powerdc1 + powerdc2 + powerdc3 + powerdc4 |
+| Battery          | batPower                        |
+| Battery_status   | soc (%)                         |
+| Grid             | feedinpower                     |
+| House            | acpower                         |
+
+Extra fields exposed: `inverterStatus` (human-readable string), `yieldToday`, `yieldTotal`, `feedinEnergy`, `consumeEnergy`.
+
+When both SolaX and Playwright succeed in the same cycle, SolaX data takes precedence.
+
+Plug safety
+-----------
+Several safeguards prevent the controller from accidentally switching the plug:
+
+1. **No write on startup** — `lastActionAt` is initialised to `Date.now()`, so the action
+   cooldown blocks any write for the full cooldown window after launch.
+2. **Unknown state blocks writes** — if `extractPlugStatus` returns `null` (e.g. navigation
+   error), `wouldCauseStateChange` returns `false`, so no write is attempted.
+3. **Passive mode has no writes** — the Playwright power read runs regardless of whether the
+   controller timer is active, but actual plug writes only happen inside `checkOnce()` which
+   requires the timer to be running.
+4. **Correct page before read** — `extractPlugStatus` always navigates to `/plug` before
+   reading the checkbox value, preventing stale reads from other pages.
+
+Dashboard UI
+------------
+The frontend (`public/`) has been overhauled:
+
+- **Card layout** — the status area above the graphs is a single `.sc-card` component with:
+  - Header: solar-panel icon · "Solar Controller" · last-action timestamp · animated state dot
+  - Row 1 (3 col): Active scenario · Matched scenarios · Next refresh (time + countdown badge + date)
+  - Row 2 (2 col): Interval (formatted as `60 000 ms (60 s)`) · Action cooldown (same format)
+  - Weather strip: large weather emoji · UV index + cloud % + fetch time · UV forecast today/tomorrow
+
+- **Grafana-style charts** — both the power and weather charts support pinch-to-zoom and
+  drag-to-pan via `chartjs-plugin-zoom` (requires `hammerjs`). Load order in `index.html`:
+  `hammerjs` → `chart.js` → `chartjs-plugin-zoom`. "Reset zoom" buttons restore the default
+  12-hour view.
+
+- **7-day history, 12 h initial view** — `fetchAndRenderWeather()` always loads the last
+  7 days of data; the chart's initial `min`/`max` is clamped to the last 12 hours.
+
+- **Force action / scenario selector** — moved to the Config tab so they are not visible
+  in normal operation.

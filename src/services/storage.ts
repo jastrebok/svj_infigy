@@ -58,7 +58,33 @@ export async function query(sinceMs: number) {
     for (const l of lines) {
       try {
         const obj = JSON.parse(l);
-        if (obj && typeof obj.ts === 'number' && obj.ts >= sinceMs) out.push(obj);
+        if (obj && typeof obj.ts === 'number' && obj.ts >= sinceMs) {
+          // normalize legacy power keys (Czech) to English equivalents so historical data remains usable
+          if (obj.power && typeof obj.power === 'object') {
+            const keyMap: Record<string, string> = {
+              'Dům': 'House',
+              'FVE': 'Photovoltaics',
+              'Baterie': 'Battery',
+              'Síť': 'Grid',
+              'Zásuvka': 'Plug',
+              'Zasuvka': 'Plug'
+            };
+            const norm: Record<string, any> = {};
+            for (const srcKey of Object.keys(obj.power)) {
+              const mapped = keyMap[srcKey];
+              if (mapped && typeof obj.power[srcKey] !== 'undefined') {
+                // only add mapped key if not already present
+                if (typeof obj.power[mapped] === 'undefined') {
+                  norm[mapped] = obj.power[srcKey];
+                }
+              }
+            }
+            if (Object.keys(norm).length > 0) {
+              obj.power = Object.assign({}, obj.power, norm);
+            }
+          }
+          out.push(obj);
+        }
       } catch (e) {
         // ignore
       }

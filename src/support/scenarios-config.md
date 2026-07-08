@@ -25,11 +25,8 @@ Trigger expression variables
 - `battery_cap`: numeric (or null) — battery capacity percentage (0-100)
 - `isDay`: boolean — true during daytime (between sunrise/sunset)
 - `isNight`: boolean — true during nighttime
-- `power_total`: numeric (or null) — sum of all power readings in kW (Dům + FVE + Baterie + Zásuvka + Síť)
-- `power`: object mapping power metric keys to raw string values in kW
-
+ `power_total`: numeric (or null) — sum of all power readings in kW (House + Photovoltaics + Battery + Plug + Grid)
 Examples
---------
 `"uvi >= 3 && (power_total === null || power_total < 50) && isDay"` — turn on plug during daytime when UVI is strong and total power is low.
 
 `"isNight && (power_total !== null && battery_cap < 50)"` — during night, if battery capacity is below 50%, take action.

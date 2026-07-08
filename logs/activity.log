@@ -275,3 +275,242 @@
 {"ts":1782456802441,"kind":"power","power":{"FVE":"8.3 kW","Baterie":"9.3 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
 {"ts":1782456922450,"kind":"power","power":{"FVE":"8.4 kW","Baterie":"9.5 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
 {"ts":1782457042458,"kind":"power","power":{"FVE":"8.4 kW","Baterie":"10.3 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782457162462,"kind":"power","power":{"FVE":"8.5 kW","Baterie":"10.1 kW","Síť":"0.2 kW","Dům":"0.0 kW"}}
+{"ts":1782457282490,"kind":"power","power":{"FVE":"8.6 kW","Baterie":"3.7 kW","Síť":"0.2 kW","Dům":"5.2 kW"}}
+{"ts":1782457402521,"kind":"power","power":{"FVE":"8.7 kW","Baterie":"10.5 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782457522520,"kind":"power","power":{"FVE":"8.8 kW","Baterie":"10.6 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782457642558,"kind":"power","power":{"FVE":"8.8 kW","Baterie":"10.3 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782457762589,"kind":"power","power":{"FVE":"9.0 kW","Baterie":"10.5 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782457882606,"kind":"power","power":{"FVE":"9.1 kW","Baterie":"10.4 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782458002633,"kind":"power","power":{"FVE":"9.2 kW","Baterie":"10.4 kW","Síť":"0.2 kW","Dům":"0.0 kW"}}
+{"ts":1782458122668,"kind":"power","power":{"FVE":"9.2 kW","Baterie":"10.6 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782458242672,"kind":"power","power":{"FVE":"9.4 kW","Baterie":"10.8 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782458362699,"kind":"power","power":{"FVE":"9.5 kW","Baterie":"10.9 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782458482725,"kind":"power","power":{"FVE":"9.5 kW","Baterie":"11.0 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782458602745,"kind":"power","power":{"FVE":"9.7 kW","Baterie":"11.1 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782458722776,"kind":"power","power":{"FVE":"9.7 kW","Baterie":"11.3 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782458842791,"kind":"power","power":{"FVE":"9.8 kW","Baterie":"5.2 kW","Síť":"0.1 kW","Dům":"4.6 kW"}}
+{"ts":1782458962824,"kind":"power","power":{"FVE":"9.9 kW","Baterie":"11.5 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782459082841,"kind":"power","power":{"FVE":"10.0 kW","Baterie":"11.7 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782459202863,"kind":"power","power":{"FVE":"10.1 kW","Baterie":"11.5 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782459322870,"kind":"power","power":{"FVE":"10.2 kW","Baterie":"12.2 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782459442904,"kind":"power","power":{"FVE":"10.3 kW","Baterie":"11.8 kW","Síť":"0.2 kW","Dům":"0.0 kW"}}
+{"ts":1782459562925,"kind":"power","power":{"FVE":"10.4 kW","Baterie":"12.2 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782459682952,"kind":"power","power":{"FVE":"10.4 kW","Baterie":"12.2 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782459803298,"kind":"power","power":{"FVE":"10.5 kW","Baterie":"12.6 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782459923001,"kind":"power","power":{"FVE":"10.6 kW","Baterie":"12.5 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782460043034,"kind":"power","power":{"FVE":"10.7 kW","Baterie":"12.5 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782460163054,"kind":"power","power":{"FVE":"10.8 kW","Baterie":"13.2 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782460283061,"kind":"power","power":{"FVE":"10.8 kW","Baterie":"13.0 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782460403089,"kind":"power","power":{"FVE":"10.9 kW","Baterie":"13.3 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782460523111,"kind":"power","power":{"FVE":"11.0 kW","Baterie":"13.0 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782460643137,"kind":"power","power":{"FVE":"11.0 kW","Baterie":"13.3 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782460763150,"kind":"power","power":{"FVE":"11.1 kW","Baterie":"13.2 kW","Síť":"0.2 kW","Dům":"0.0 kW"}}
+{"ts":1782460883186,"kind":"power","power":{"FVE":"11.2 kW","Baterie":"7.0 kW","Síť":"0.1 kW","Dům":"4.4 kW"}}
+{"ts":1782461003190,"kind":"power","power":{"FVE":"11.3 kW","Baterie":"13.7 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782461123225,"kind":"power","power":{"FVE":"11.4 kW","Baterie":"13.6 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782461243250,"kind":"power","power":{"FVE":"11.5 kW","Baterie":"13.7 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782461363290,"kind":"power","power":{"FVE":"11.5 kW","Baterie":"14.0 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782461483296,"kind":"power","power":{"FVE":"11.6 kW","Baterie":"14.0 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782461603313,"kind":"power","power":{"FVE":"11.6 kW","Baterie":"14.0 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782461723336,"kind":"power","power":{"FVE":"11.7 kW","Baterie":"8.1 kW","Síť":"0.1 kW","Dům":"3.5 kW"}}
+{"ts":1782461843364,"kind":"power","power":{"FVE":"11.8 kW","Baterie":"8.2 kW","Síť":"0.1 kW","Dům":"3.7 kW"}}
+{"ts":1782461963396,"kind":"power","power":{"FVE":"11.8 kW","Baterie":"14.4 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782462083414,"kind":"power","power":{"FVE":"11.9 kW","Baterie":"13.9 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782462203438,"kind":"power","power":{"FVE":"12.0 kW","Baterie":"13.9 kW","Síť":"0.2 kW","Dům":"0.0 kW"}}
+{"ts":1782462323454,"kind":"power","power":{"FVE":"12.0 kW","Baterie":"14.1 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782462443490,"kind":"power","power":{"FVE":"12.1 kW","Baterie":"8.1 kW","Síť":"0.0 kW","Dům":"4.0 kW"}}
+{"ts":1782462563506,"kind":"power","power":{"FVE":"12.1 kW","Baterie":"14.0 kW","Síť":"0.2 kW","Dům":"0.0 kW"}}
+{"ts":1782462683532,"kind":"power","power":{"FVE":"12.1 kW","Baterie":"14.3 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782462803562,"kind":"power","power":{"FVE":"12.2 kW","Baterie":"14.6 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782462923584,"kind":"power","power":{"FVE":"12.3 kW","Baterie":"14.8 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782463043579,"kind":"power","power":{"FVE":"12.4 kW","Baterie":"8.5 kW","Síť":"0.1 kW","Dům":"3.8 kW"}}
+{"ts":1782463163599,"kind":"power","power":{"FVE":"12.4 kW","Baterie":"9.8 kW","Síť":"0.1 kW","Dům":"2.5 kW"}}
+{"ts":1782463283642,"kind":"power","power":{"FVE":"12.5 kW","Baterie":"14.7 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782463403659,"kind":"power","power":{"FVE":"12.5 kW","Baterie":"14.8 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782463523680,"kind":"power","power":{"FVE":"12.7 kW","Baterie":"15.0 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782463643710,"kind":"power","power":{"FVE":"12.8 kW","Baterie":"15.1 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782463763736,"kind":"power","power":{"FVE":"12.9 kW","Baterie":"15.2 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782463883764,"kind":"power","power":{"FVE":"12.9 kW","Baterie":"15.2 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782464003783,"kind":"power","power":{"FVE":"12.9 kW","Baterie":"15.2 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782464123822,"kind":"power","power":{"FVE":"13.0 kW","Baterie":"9.0 kW","Síť":"0.1 kW","Dům":"3.9 kW"}}
+{"ts":1782464243832,"kind":"power","power":{"FVE":"13.0 kW","Baterie":"11.0 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782464363854,"kind":"power","power":{"FVE":"13.1 kW","Baterie":"13.3 kW","Síť":"0.1 kW","Dům":"0.0 kW"}}
+{"ts":1782464483891,"kind":"power","power":{"FVE":"13.1 kW","Baterie":"15.6 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782464603896,"kind":"power","power":{"FVE":"13.2 kW","Baterie":"15.7 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782464723922,"kind":"power","power":{"FVE":"13.3 kW","Baterie":"15.8 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782464843948,"kind":"power","power":{"FVE":"13.3 kW","Baterie":"9.7 kW","Síť":"0.0 kW","Dům":"3.6 kW"}}
+{"ts":1782464963982,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782465084008,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782465204030,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782465324062,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782465444351,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782465564136,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782465684136,"kind":"power","power":{"FVE":"13.6 kW","Baterie":"16.6 kW","Síť":"0.0 kW","Dům":"0.0 kW"}}
+{"ts":1782465760900,"kind":"power","power":{"FVE":"13.8 kW","Baterie":"11.8 kW","Síť":"1.2 kW","Dům":"3.2 kW"}}
+{"ts":1782465804132,"kind":"power","power":{"FVE":"13.7 kW","Baterie":"8.8 kW","Síť":"0.1 kW","Dům":"4.9 kW"}}
+{"ts":1782465924124,"kind":"power","power":{"FVE":"3.7 kW","Baterie":"0.0 kW","Síť":"0.4 kW","Dům":"3.3 kW"}}
+{"ts":1782466046385,"kind":"power","power":{"FVE":"1.5 kW","Baterie":"0.8 kW","Síť":"0.2 kW","Dům":"2.5 kW"}}
+2026-06-26T09:27:34.224Z state -> busy
+2026-06-26T09:27:37.470Z state -> logged_in
+2026-06-26T09:27:37.470Z state -> ready
+{"ts":1782466054401,"kind":"power","power":{"FVE":"1.5 kW","Baterie":"1.4 kW","Síť":"0.2 kW","Dům":"3.1 kW"}}
+2026-06-26T09:28:04.229Z state -> busy
+2026-06-26T09:28:05.231Z state -> ready
+{"ts":1782466084355,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782466114462,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782466337311,"kind":"power","power":{"FVE":"0.4 kW","Baterie":"8.9 kW","Síť":"0.1 kW","Dům":"9.4 kW"}}
+{"ts":1782466422760,"kind":"power","power":{"FVE":"0.2 kW","Baterie":"3.5 kW","Síť":"0.4 kW","Dům":"3.3 kW"}}
+2026-06-26T09:34:10.624Z state -> busy
+2026-06-26T09:34:14.328Z state -> logged_in
+2026-06-26T09:34:14.328Z state -> ready
+{"ts":1782466450742,"kind":"power","power":{"FVE":"0.2 kW","Baterie":"3.5 kW","Síť":"0.1 kW","Dům":"3.7 kW"}}
+2026-06-26T09:34:40.628Z state -> busy
+2026-06-26T09:34:41.841Z state -> ready
+{"ts":1782466480787,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782466510837,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+{"ts":1782466540751,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+2026-06-26T09:36:10.629Z state -> busy
+{"ts":1782466570757,"kind":"power","power":{"FVE":null,"Baterie":null,"Síť":null,"Dům":null}}
+2026-06-26T09:36:11.905Z state -> ready
+{"ts":1782466926200,"kind":"power","power":{"FVE":"0.1 kW","Baterie":"3.7 kW","Síť":"0.0 kW","Dům":"3.8 kW"}}
+2026-06-26T10:00:20.751Z state -> busy
+2026-06-26T10:00:22.756Z state -> idle
+2026-06-26T10:00:24.141Z state -> logged_in
+2026-06-26T10:00:24.141Z state -> ready
+2026-06-26T10:00:24.756Z state -> busy
+2026-06-26T10:00:25.894Z state -> ready
+2026-06-26T10:00:38.247Z state -> idle
+26/06/2026, 12:10:20 state -> busy
+26/06/2026, 12:10:22 state -> idle
+26/06/2026, 12:10:23 state -> logged_in
+26/06/2026, 12:10:23 state -> ready
+26/06/2026, 12:10:24 state -> busy
+26/06/2026, 12:10:25 state -> ready
+26/06/2026, 12:11:26 state -> idle
+26/06/2026, 12:17:10 state -> busy
+26/06/2026, 12:17:12 state -> idle
+26/06/2026, 12:17:14 state -> busy
+26/06/2026, 12:17:14 state -> logged_in
+26/06/2026, 12:17:14 state -> ready
+26/06/2026, 12:17:16 state -> busy
+26/06/2026, 12:17:17 state -> ready
+26/06/2026, 12:17:17 state -> logged_in
+26/06/2026, 12:17:17 state -> ready
+26/06/2026, 12:18:18 state -> busy
+26/06/2026, 12:18:19 state -> ready
+26/06/2026, 12:19:20 state -> busy
+26/06/2026, 12:19:21 state -> ready
+26/06/2026, 12:20:22 state -> busy
+26/06/2026, 12:20:23 state -> ready
+26/06/2026, 12:21:24 state -> busy
+26/06/2026, 12:21:25 state -> ready
+26/06/2026, 12:21:47 state -> idle
+26/06/2026, 12:30:48 state -> busy
+26/06/2026, 12:30:50 state -> idle
+26/06/2026, 12:30:51 state -> logged_in
+26/06/2026, 12:30:51 state -> ready
+26/06/2026, 12:30:52 state -> busy
+26/06/2026, 12:30:53 state -> ready
+26/06/2026, 12:31:27 state -> idle
+26/06/2026, 12:42:00 state -> busy
+26/06/2026, 12:42:02 state -> idle
+26/06/2026, 12:42:03 state -> logged_in
+26/06/2026, 12:42:03 state -> ready
+26/06/2026, 12:42:04 state -> busy
+26/06/2026, 12:42:05 state -> ready
+26/06/2026, 12:42:28 state -> idle
+26/06/2026, 13:06:12 state -> busy
+26/06/2026, 13:06:14 state -> idle
+26/06/2026, 13:06:15 state -> logged_in
+26/06/2026, 13:06:15 state -> ready
+26/06/2026, 13:06:16 state -> busy
+26/06/2026, 13:06:17 state -> ready
+26/06/2026, 13:07:18 state -> busy
+26/06/2026, 13:07:19 state -> ready
+26/06/2026, 13:08:20 state -> busy
+26/06/2026, 13:08:21 state -> ready
+26/06/2026, 13:09:22 state -> busy
+26/06/2026, 13:09:23 state -> ready
+26/06/2026, 13:10:32 state -> busy
+26/06/2026, 13:10:34 state -> idle
+26/06/2026, 13:10:35 state -> logged_in
+26/06/2026, 13:10:35 state -> ready
+26/06/2026, 13:10:36 state -> busy
+26/06/2026, 13:10:37 state -> ready
+26/06/2026, 13:11:38 state -> busy
+26/06/2026, 13:11:39 state -> ready
+26/06/2026, 13:12:40 state -> busy
+26/06/2026, 13:12:41 state -> ready
+26/06/2026, 13:38:59 state -> busy
+26/06/2026, 13:39:09 state -> logged_in
+26/06/2026, 13:39:09 state -> ready
+26/06/2026, 13:39:09 state -> busy
+{"kind":"action","ts":1782473950045,"timeStr":"26/06/2026, 13:39:10","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 13:39:10 state -> ready
+26/06/2026, 13:40:13 state -> busy
+{"kind":"action","ts":1782474014022,"timeStr":"26/06/2026, 13:40:14","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 13:40:14 state -> ready
+26/06/2026, 13:40:31 state -> busy
+{"kind":"action","ts":1782474031842,"timeStr":"26/06/2026, 13:40:31","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 13:40:31 state -> ready
+26/06/2026, 13:40:56 state -> busy
+{"kind":"action","ts":1782474057353,"timeStr":"26/06/2026, 13:40:57","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 13:40:57 state -> ready
+26/06/2026, 13:41:58 state -> busy
+{"kind":"action","ts":1782474119013,"timeStr":"26/06/2026, 13:41:59","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 13:41:59 state -> ready
+26/06/2026, 13:42:34 state -> busy
+{"kind":"action","ts":1782474154681,"timeStr":"26/06/2026, 13:42:34","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 13:42:34 state -> ready
+26/06/2026, 14:04:33 state -> busy
+{"kind":"action","ts":1782475473710,"timeStr":"26/06/2026, 14:04:33","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:04:33 state -> ready
+26/06/2026, 14:07:32 state -> busy
+26/06/2026, 14:07:36 state -> logged_in
+26/06/2026, 14:07:36 state -> busy
+26/06/2026, 14:07:36 state -> ready
+{"kind":"action","ts":1782475656670,"timeStr":"26/06/2026, 14:07:36","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:07:36 state -> ready
+26/06/2026, 14:12:26 state -> busy
+26/06/2026, 14:12:29 state -> logged_in
+26/06/2026, 14:12:29 state -> ready
+26/06/2026, 14:12:29 state -> busy
+{"kind":"action","ts":1782475950205,"timeStr":"26/06/2026, 14:12:30","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:12:30 state -> ready
+26/06/2026, 14:12:42 state -> busy
+{"kind":"action","ts":1782475962477,"timeStr":"26/06/2026, 14:12:42","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:12:42 state -> ready
+26/06/2026, 14:13:12 state -> busy
+{"kind":"action","ts":1782475993315,"timeStr":"26/06/2026, 14:13:13","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:13:13 state -> ready
+26/06/2026, 14:18:36 state -> busy
+26/06/2026, 14:18:46 state -> logged_in
+26/06/2026, 14:18:46 state -> busy
+26/06/2026, 14:18:46 state -> ready
+{"kind":"action","ts":1782476327269,"timeStr":"26/06/2026, 14:18:47","scenarioId":null,"scenarioLabel":null,"actionId":"turn_on_plug","actionLabel":"Turn On Plug","status":"executed","manual":true}
+26/06/2026, 14:18:47 state -> ready
+26/06/2026, 14:20:39 state -> busy
+{"kind":"action","ts":1782476471201,"timeStr":"26/06/2026, 14:21:11","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:21:11 state -> ready
+26/06/2026, 14:26:22 state -> busy
+26/06/2026, 14:26:26 state -> ready
+26/06/2026, 14:26:26 state -> logged_in
+26/06/2026, 14:26:26 state -> busy
+{"kind":"action","ts":1782476787562,"timeStr":"26/06/2026, 14:26:27","scenarioId":null,"scenarioLabel":null,"actionId":"turn_off_plug","actionLabel":"Turn Off Plug","status":"executed","manual":true}
+26/06/2026, 14:26:27 state -> ready
+26/06/2026, 14:32:14 state -> busy
+26/06/2026, 14:32:18 state -> ready
+26/06/2026, 14:32:18 state -> busy
+26/06/2026, 14:32:18 state -> logged_in
+{"kind":"action","ts":1782477139568,"timeStr":"26/06/2026, 14:32:19","scenarioId":null,"scenarioLabel":null,"actionId":"turn_on_plug","actionLabel":"Turn On Plug","status":"executed","manual":true}
+26/06/2026, 14:32:51 state -> ready
+26/06/2026, 14:36:02 state -> busy
+{"kind":"action","ts":1782477394930,"timeStr":"26/06/2026, 14:36:34","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:37:07 state -> ready
+26/06/2026, 14:38:48 state -> busy
+{"kind":"action","ts":1782477531938,"timeStr":"26/06/2026, 14:38:51","scenarioId":null,"scenarioLabel":null,"actionId":"turn_off_plug","actionLabel":"Turn Off Plug","status":"executed","manual":true}
+26/06/2026, 14:39:29 state -> ready
+26/06/2026, 14:43:22 state -> busy
+{"kind":"action","ts":1782477804368,"timeStr":"26/06/2026, 14:43:24","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
+26/06/2026, 14:43:31 state -> ready

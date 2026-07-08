@@ -17,20 +17,28 @@ async function refresh() {
   try {
     const s = await api('/api/status');
     setTextIf('state', s.state);
-    setTextIf('last', s.lastActionAt ? ts(s.lastActionAt) : 'never');
-    setTextIf('interval', s.intervalMs);
-    setTextIf('cooldown', s.actionCooldownMs);
-    if (s.currentScenario && typeof s.currentScenario === 'object') {
-      setTextIf('current-scenario', `${s.currentScenario.label || s.currentScenario.id} (${s.currentScenario.actionId})`);
-    } else {
-      setTextIf('current-scenario', 'none');
+    // state dot colour
+    const dotEl = document.getElementById('state-dot');
+    if (dotEl) {
+      const dotColors = { idle: '#22c55e', logged_in: '#22c55e', ready: '#22c55e', busy: '#f59e0b', error: '#ef4444' };
+      dotEl.style.backgroundColor = dotColors[s.state] || '#9ca3af';
     }
+    setTextIf('last', s.lastActionAt ? ts(s.lastActionAt) : 'never');
+    if (s.currentScenario && typeof s.currentScenario === 'object') {
+      setTextIf('last-scenario', `Scenario: ${s.currentScenario.label || s.currentScenario.id} → ${s.currentScenario.actionId}`);
+      setTextIf('current-scenario', `${s.currentScenario.label || s.currentScenario.id}`);
+    } else {
+      setTextIf('last-scenario', '—');
+      setTextIf('current-scenario', 'None');
+    }
+    setTextIf('interval', s.intervalMs != null ? `${s.intervalMs} ms (${Math.round(s.intervalMs/1000)} s)` : 'n/a');
+    setTextIf('cooldown', s.actionCooldownMs != null ? `${s.actionCooldownMs} ms (${Math.round(s.actionCooldownMs/1000)} s)` : 'n/a');
 
     if (s.latestWeather) {
       setTextIf('weather-clouds', typeof s.latestWeather.clouds === 'number' ? s.latestWeather.clouds : 'n/a');
       setTextIf('weather-uvi', typeof s.latestWeather.uvi === 'number' ? s.latestWeather.uvi : 'n/a');
       setTextIf('weather-range', s.latestWeather.rangeStartIso && s.latestWeather.rangeEndIso ? (s.latestWeather.rangeStartIso + ' → ' + s.latestWeather.rangeEndIso) : 'n/a');
-      setTextIf('weather-fetched', s.latestWeather.fetchedAt ? ts(s.latestWeather.fetchedAt) : 'n/a');
+      setTextIf('weather-fetched', s.latestWeather.fetchedAt ? new Date(s.latestWeather.fetchedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'n/a');
       setTextIf('weather-forecast-uv-today', typeof s.latestWeather.forecast_uv_median_today === 'number' ? s.latestWeather.forecast_uv_median_today.toFixed(1) : 'n/a');
       setTextIf('weather-forecast-uv-tomorrow', typeof s.latestWeather.forecast_uv_median_tomorrow === 'number' ? s.latestWeather.forecast_uv_median_tomorrow.toFixed(1) : 'n/a');
       updateWeatherIcon(typeof s.latestWeather.clouds === 'number' ? s.latestWeather.clouds : null);
@@ -45,47 +53,59 @@ async function refresh() {
     }
 
     if (s.latestPower) {
-      setTextIf('power-dum', s.latestPower['Dům'] ?? 'n/a');
-      setTextIf('power-fve', s.latestPower['FVE'] ?? 'n/a');
-      setTextIf('power-baterie', s.latestPower['Baterie'] ?? 'n/a');
-      setTextIf('power-sit', s.latestPower['Síť'] ?? 'n/a');
-      // plug status provided separately as latestPlug
-      setTextIf('power-plug', s.latestPlug ?? 'n/a');
+      setTextIf('power-house', s.latestPower['House'] ?? 'n/a');
+      setTextIf('power-photovoltaics', s.latestPower['Photovoltaics'] ?? 'n/a');
+      setTextIf('power-battery', s.latestPower['Battery'] ?? 'n/a');
+      setTextIf('power-battery-cap', (s.latestWeather && typeof s.latestWeather.battery_cap === 'number') ? (s.latestWeather.battery_cap.toFixed(1) + '%') : 'n/a');
+      setTextIf('power-grid', s.latestPower['Grid'] ?? 'n/a');
+      // plug status provided separately as latestPlug (display uppercase)
+      setTextIf('power-plug', (typeof s.latestPlug === 'string') ? s.latestPlug.toUpperCase() : 'n/a');
       const plugEl = document.getElementById('power-plug');
       if (plugEl) {
-        if (s.latestPlug === 'on') {
+        const plugState = (typeof s.latestPlug === 'string') ? s.latestPlug.toLowerCase() : '';
+        if (plugState === 'on') {
           plugEl.style.color = 'var(--success)';
-        } else if (s.latestPlug === 'off') {
+        } else if (plugState === 'off') {
           plugEl.style.color = 'var(--muted)';
         } else {
           plugEl.style.color = '';
         }
       }
     } else {
-      setTextIf('power-dum', 'n/a');
-      setTextIf('power-fve', 'n/a');
-      setTextIf('power-baterie', 'n/a');
-      setTextIf('power-sit', 'n/a');
+      setTextIf('power-house', 'n/a');
+      setTextIf('power-photovoltaics', 'n/a');
+      setTextIf('power-battery', 'n/a');
+      setTextIf('power-grid', 'n/a');
       setTextIf('power-plug', 'n/a');
     }
 
-    // Passive polling info (server provides passiveNextFetchAt when controller not running)
-    if (!s.controllerRunning && s.passiveNextFetchAt) {
-      setTextIf('next-refresh', ts(s.passiveNextFetchAt));
-      window.__passiveNextFetchAt = s.passiveNextFetchAt;
+    // Fetcher next-run info (server provides nextFetchAt)
+    if (s.nextFetchAt) {
+      const nfd = new Date(s.nextFetchAt);
+      setTextIf('next-refresh-time', nfd.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setTextIf('next-refresh-date', nfd.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }));
+      window.__nextFetchAt = s.nextFetchAt;
     } else {
-      setTextIf('next-refresh', 'n/a');
-      window.__passiveNextFetchAt = null;
+      setTextIf('next-refresh-time', 'n/a');
+      setTextIf('next-refresh-date', '—');
+      window.__nextFetchAt = null;
       setTextIf('countdown', '—');
+    }
+    // Show matched scenarios
+    if (s.matchedScenarios && Array.isArray(s.matchedScenarios)) {
+      const matched = s.matchedScenarios.filter(x => x.matched).map(x => x.label || x.id);
+      setTextIf('matched-scenarios', matched.length ? matched.join(', ') : 'None');
+    } else {
+      setTextIf('matched-scenarios', 'None');
     }
   } catch (err) {
     console.error(err);
   }
 }
 
-// countdown updater (1s) reading passiveNextFetchAt set by refresh()
+// countdown updater (1s) reading nextFetchAt set by refresh()
 function updateCountdown() {
-  const next = window.__passiveNextFetchAt || null;
+  const next = window.__nextFetchAt || null;
   if (!next) {
     setTextIf('countdown', '—');
     return;
@@ -295,19 +315,7 @@ function updateChartFromHourly(hourly) {
   if (weatherChart) {
     weatherChart.data.datasets[0].data = clouds;
     weatherChart.data.datasets[1].data = uvis;
-    weatherChart.options.scales.x = {
-      type: 'linear',
-      min: weatherTimeRange.startMs,
-      max: weatherTimeRange.endMs,
-      title: { display: true, text: 'Time' },
-      ticks: {
-        callback(value) {
-          const d = new Date(value);
-          return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
-        }
-      }
-    };
-    weatherChart.update();
+    weatherChart.update('none');
     return;
   }
 
@@ -369,7 +377,11 @@ function updateChartFromHourly(hourly) {
           }
         },
         plugins: {
-          legend: { position: 'top' }
+          legend: { position: 'top' },
+          zoom: {
+            pan: { enabled: true, mode: 'x', threshold: 5 },
+            zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x' },
+          }
         }
       },
       plugins: [pluginNight, pluginCurrentLine]
@@ -475,9 +487,17 @@ function updateChartFromSeries(entries, nowMs) {
       }
     }
   };
+  // Determine a sensible x-axis time range so chart renders even with no datasets.
   if (weatherTimeRange && typeof weatherTimeRange.startMs === 'number' && typeof weatherTimeRange.endMs === 'number') {
     xScale.min = weatherTimeRange.startMs;
     xScale.max = weatherTimeRange.endMs;
+  } else {
+    // fallback to the rows' timestamp range or a 1-hour window around now
+    const sortedRows = (rows && rows.length) ? rows.slice().sort((a, b) => a.ts - b.ts) : [];
+    const minTs = sortedRows.length ? sortedRows[0].ts : (nowMs - (60 * 60 * 1000));
+    const maxTs = sortedRows.length ? sortedRows[sortedRows.length - 1].ts : (nowMs + (60 * 60 * 1000));
+    xScale.min = minTs;
+    xScale.max = maxTs;
   }
 
   const config = {
@@ -497,14 +517,27 @@ function updateChartFromSeries(entries, nowMs) {
   };
 
   if (weatherChart) {
-    weatherChart.data = chartData;
-    weatherChart.options = config.options;
-    weatherChart.update();
+    weatherChart.data.datasets = chartData.datasets;
+    weatherChart.update('none');
     return;
   }
 
+  const zoomOpts = {
+    pan: { enabled: true, mode: 'x', threshold: 5 },
+    zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x' },
+    limits: {
+      x: {
+        min: (weatherTimeRange && weatherTimeRange.fullStartMs) || undefined,
+        max: (weatherTimeRange && weatherTimeRange.fullEndMs) || undefined,
+      }
+    }
+  };
+
   try {
-    weatherChart = new Chart(ctx, config);
+    weatherChart = new Chart(ctx, {
+      ...config,
+      options: { ...config.options, plugins: { ...config.options.plugins, zoom: zoomOpts } }
+    });
   } catch (err) {
     showChartError('Failed to create Chart: ' + String(err));
     console.error(err);
@@ -530,9 +563,7 @@ async function fetchAndRenderWeather() {
       updateWeatherUIFromSummary(summary);
       // Fetch N hours of recent metrics (configurable) and combine
       try {
-        const histHoursEl = document.getElementById('history-select');
-        const histHours = histHoursEl ? Number(histHoursEl.value) : 12;
-        const since = Date.now() - (histHours * 60 * 60 * 1000);
+        const since = Date.now() - (7 * 24 * 60 * 60 * 1000); // always load 7 days; user zooms to desired range
         const m = await api('/api/metrics?since=' + since);
         const rows = (m && m.ok && m.rows) ? m.rows : [];
 
@@ -557,14 +588,18 @@ async function fetchAndRenderWeather() {
 
         const allEntries = chartEntries.concat(futureEntries).sort((a, b) => a.ts - b.ts);
         const nowMs = Date.now();
+        const fullEndMs = allEntries.length ? allEntries[allEntries.length - 1].ts : nowMs + 72 * 60 * 60 * 1000;
+        const fullStartMs = nowMs - (7 * 24 * 60 * 60 * 1000);
         weatherTimeRange = {
-          startMs: nowMs - (histHours * 60 * 60 * 1000),
-          endMs: allEntries.length ? allEntries[allEntries.length - 1].ts : nowMs + 72 * 60 * 60 * 1000,
+          startMs: nowMs - (12 * 60 * 60 * 1000), // initial chart view: last 12 h
+          endMs: fullEndMs,
+          fullStartMs,
+          fullEndMs,
         };
         updateChartFromSeries(allEntries, nowMs);
         // Draw sparklines for power values and render the larger power chart
         try {
-          const keys = { dum: 'Dům', fve: 'FVE', baterie: 'Baterie' };
+          const keys = { house: 'House', photovoltaics: 'Photovoltaics', battery: 'Battery' };
           for (const [cid, key] of Object.entries(keys)) {
             const series = rows
               .filter(row => row && row.power)
@@ -574,6 +609,22 @@ async function fetchAndRenderWeather() {
             const el = document.getElementById('sparkcount-' + cid);
             if (el) el.textContent = `samples: ${cnt}`;
           }
+          // battery capacity sparkline (from weather.battery_cap)
+          const capSeries = rows
+            .filter(row => row && row.weather)
+            .map(row => (typeof row.weather.battery_cap === 'number' ? Number(row.weather.battery_cap) : null));
+          drawSparkline('spark-battery-cap', capSeries);
+          const capCnt = capSeries.filter(x => x !== null).length;
+          const capEl = document.getElementById('sparkcount-battery-cap');
+          if (capEl) capEl.textContent = `samples: ${capCnt}`;
+          // Draw plug status sparkline (0=off, 1=on)
+          const plugSeries = rows
+            .filter(row => row && row.plug)
+            .map(row => row.plug === 'on' ? 1 : (row.plug === 'off' ? 0 : null));
+          drawSparkline('spark-plug', plugSeries);
+          const plugCnt = plugSeries.filter(x => x !== null).length;
+          const plugEl = document.getElementById('sparkcount-plug');
+          if (plugEl) plugEl.textContent = `samples: ${plugCnt}`;
         } catch (e) {
           console.error('sparkline draw failed', e);
         }
@@ -582,11 +633,12 @@ async function fetchAndRenderWeather() {
         console.error('fetch metrics failed', err);
         updateChartFromHourly(hourly);
         // render empty sparklines as placeholder
-        drawSparkline('spark-dum', []);
-        drawSparkline('spark-fve', []);
-        drawSparkline('spark-baterie', []);
+        drawSparkline('spark-house', []);
+        drawSparkline('spark-photovoltaics', []);
+        drawSparkline('spark-battery', []);
+        drawSparkline('spark-plug', []);
         try {
-          const els = ['dum','fve','baterie'];
+          const els = ['house','photovoltaics','battery','plug'];
           for (const id of els) {
             const el = document.getElementById('sparkcount-' + id);
             if (el) el.textContent = 'samples: 0';
@@ -606,15 +658,22 @@ function updatePowerChart(rows, nowMs) {
   if (window.Chart === undefined) return;
 
   const powerKeys = [
-    { label: 'Dům', field: 'Dům', borderColor: 'rgba(54,162,235,1)' },
-    { label: 'FVE', field: 'FVE', borderColor: 'rgba(255,159,64,1)' },
-    { label: 'Baterie', field: 'Baterie', borderColor: 'rgba(153,102,255,1)' },
-    { label: 'Síť', field: 'Síť', borderColor: 'rgba(75,192,192,1)' },
+    { label: 'House', field: 'House', borderColor: 'rgba(54,162,235,1)' },
+    { label: 'Photovoltaics', field: 'Photovoltaics', borderColor: 'rgba(255,159,64,1)' },
+    { label: 'Battery', field: 'Battery', borderColor: 'rgba(153,102,255,1)' },
+    { label: 'Grid', field: 'Grid', borderColor: 'rgba(75,192,192,1)' },
+    // Battery capacity from weather.battery_cap (percentage)
+    { label: 'Battery Capacity', field: 'battery_cap', borderColor: 'rgba(255,205,86,1)', isWeather: true },
   ];
 
   const datasets = powerKeys.map(({ label, field, borderColor }) => ({
     label,
-    data: buildPowerSeries(rows, field),
+    data: (field === 'battery_cap') ? rows
+      .filter(row => row && typeof row.ts === 'number')
+      .map(row => ({ x: row.ts, y: parseNumericValue(row.weather?.battery_cap) }))
+      .filter(point => point.y !== null)
+      .sort((a, b) => a.x - b.x)
+    : buildPowerSeries(rows, field),
     borderColor,
     backgroundColor: borderColor.replace(/rgba\((\d+),(\d+),(\d+),.*\)/, 'rgba($1,$2,$3,0.15)'),
     tension: 0.2,
@@ -622,6 +681,7 @@ function updatePowerChart(rows, nowMs) {
     parsing: false,
     spanGaps: true,
     pointRadius: 2,
+    yAxisID: (field === 'battery_cap') ? 'y2' : 'y',
   })).filter(ds => ds.data && ds.data.length);
 
   const plugRanges = buildPlugRanges(rows);
@@ -668,6 +728,8 @@ function updatePowerChart(rows, nowMs) {
 
   const xScale = {
     type: 'linear',
+    min: nowMs - (12 * 60 * 60 * 1000), // initial view: last 12 h
+    max: nowMs,
     title: { display: true, text: 'Time' },
     ticks: {
       callback(value) {
@@ -676,10 +738,6 @@ function updatePowerChart(rows, nowMs) {
       }
     }
   };
-  if (weatherTimeRange && typeof weatherTimeRange.startMs === 'number' && typeof weatherTimeRange.endMs === 'number') {
-    xScale.min = weatherTimeRange.startMs;
-    xScale.max = weatherTimeRange.endMs;
-  }
 
   const config = {
     type: 'line',
@@ -694,9 +752,28 @@ function updatePowerChart(rows, nowMs) {
           title: { display: true, text: 'Power' },
           beginAtZero: true,
         }
+        ,
+        y2: {
+          type: 'linear',
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          suggestedMin: 0,
+          suggestedMax: 100,
+          title: { display: true, text: 'Battery Capacity (%)' }
+        }
       },
       plugins: {
-        legend: { position: 'top' }
+        legend: { position: 'top' },
+        zoom: {
+          pan: { enabled: true, mode: 'x', threshold: 5 },
+          zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x' },
+          limits: {
+            x: {
+              min: (weatherTimeRange && weatherTimeRange.fullStartMs) || (nowMs - 7 * 24 * 60 * 60 * 1000),
+              max: nowMs,
+            }
+          }
+        }
       }
     },
     plugins: [pluginPlugState, pluginCurrentLine]
@@ -738,18 +815,22 @@ function drawSparkline(canvasId, values) {
       ctx.fillText('n/a', 4, h - 4);
       return;
     }
-    const min = Math.min(...valid); const max = Math.max(...valid);
+    const min = Math.min(...valid); 
+    const max = Math.max(...valid);
+    // For binary data (0/1), use fixed spacing to avoid edge clipping
     const range = (max - min) || 1;
+    const isBinary = (max === 1 && min === 0 && new Set(valid).size === 2);
+    const padding = isBinary ? 4 : 2; // more padding for binary to keep line away from edges
     const step = w / Math.max(1, nums.length - 1);
     ctx.beginPath();
     ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = isBinary ? 2.5 : 1.5; // thicker for binary
     let first = true;
     for (let i = 0; i < nums.length; i++) {
       const v = nums[i];
       const x = Math.round(i * step);
       if (v === null) { first = true; continue; }
-      const y = h - Math.round(((v - min) / range) * (h - 4)) - 2;
+      const y = h - padding - Math.round(((v - min) / range) * (h - 2 * padding));
       if (first) { ctx.moveTo(x,y); first = false; } else { ctx.lineTo(x,y); }
     }
     ctx.stroke();
@@ -770,9 +851,22 @@ document.getElementById('stop').addEventListener('click', async () => {
 
 document.getElementById('force').addEventListener('click', async () => {
   try {
+    const btn = document.getElementById('force');
     const sel = document.getElementById('force-action-select');
     const actionId = sel && sel.value ? sel.value : null;
-    await fetch('/api/force', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actionId }) });
+    if (btn) {
+      btn.disabled = true;
+      const prev = btn.textContent;
+      btn.textContent = 'Working…';
+      try {
+        await fetch('/api/force', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actionId }) });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
+    } else {
+      await fetch('/api/force', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actionId }) });
+    }
     await refresh();
   } catch (err) {
     console.error('force action failed', err);
@@ -820,10 +914,9 @@ document.getElementById('toggle-browser-view').addEventListener('click', async (
   }
 });
 
-// 'Fetch Weather' button removed; use Refresh to update weather instead
-
-const histEl = document.getElementById('history-select');
-if (histEl) histEl.addEventListener('change', () => { fetchAndRenderWeather(); });
+// Reset zoom buttons
+document.getElementById('reset-zoom-weather')?.addEventListener('click', () => { if (weatherChart) weatherChart.resetZoom(); });
+document.getElementById('reset-zoom-power')?.addEventListener('click', () => { if (powerChart) powerChart.resetZoom(); });
 
 // Navigation
 function showView(id) {
@@ -867,7 +960,41 @@ async function fetchAndShowLogs() {
     const r = await api('/api/logs');
     if (r && r.ok) {
       const pre = document.getElementById('logs-pre');
-      if (pre) pre.textContent = r.logs || '';
+      if (pre) {
+        const lines = (r.logs || '').split('\n').filter(l => l.trim());
+        // Parse JSON entries to find action logs
+        const actionLogs = [];
+        for (const line of lines) {
+          try {
+            const obj = JSON.parse(line);
+            if (obj && obj.kind === 'action') {
+              actionLogs.push(obj);
+            }
+          } catch (e) {
+            // skip non-JSON lines
+          }
+        }
+        
+        // Show recent action logs first (newest to oldest)
+        if (actionLogs.length > 0) {
+          const recentActions = actionLogs.slice(-20).reverse();
+          let html = '<div style="margin-bottom: 12px;"><strong>Recent Actions (latest first):</strong></div>';
+          html += '<table style="width:100%; border-collapse:collapse; margin-bottom: 12px;">';
+          html += '<tr style="background:#f0f0f0;"><th style="border:1px solid #ccc; padding:6px; text-align:left;">Time</th><th style="border:1px solid #ccc; padding:6px; text-align:left;">Scenario</th><th style="border:1px solid #ccc; padding:6px; text-align:left;">Action</th></tr>';
+          for (const a of recentActions) {
+            const time = a.timeStr || (a.ts ? new Date(a.ts).toLocaleString('en-GB', { timeZone: 'Europe/Prague' }) : 'n/a');
+            const scenario = a.scenarioLabel || 'Unknown';
+            const action = a.actionLabel || a.actionId || 'n/a';
+            html += `<tr><td style="border:1px solid #ccc; padding:6px;">${time}</td><td style="border:1px solid #ccc; padding:6px;">${scenario}</td><td style="border:1px solid #ccc; padding:6px;"><strong>${action}</strong></td></tr>`;
+          }
+          html += '</table>';
+          html += '<div style="margin-bottom: 12px;"><strong>Full Log:</strong></div>';
+          html += '<pre style="height:300px; overflow:auto; background:#111; color:#eee; padding:12px; border-radius:6px; border:1px solid #ccc;">' + (r.logs || '') + '</pre>';
+          pre.innerHTML = html;
+        } else {
+          pre.textContent = r.logs || 'No logs yet';
+        }
+      }
     }
   } catch (err) {
     console.error('fetch logs', err);

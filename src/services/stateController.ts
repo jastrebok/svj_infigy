@@ -1,6 +1,7 @@
 import { login, runAction, extractPowerData, extractPlugStatus, performActionById } from './playwrightActions';
 import { appendEntry } from './storage';
 import { fetchWeather } from './weatherAPI';
+import { getSolaxPowerData } from './solaxAPI';
 import fs from 'fs';
 import path from 'path';
 import type { Page, Browser } from 'playwright';
@@ -27,23 +28,39 @@ type Scenario = {
   enabled?: boolean;
 };
 
+type Action = {
+  id: string;
+  label?: string;
+  description?: string;
+  enabled?: boolean;
+};
+
 export class SolarHousekeeper {
   private state: State = State.Idle;
   private intervalMs: number;
   private actionCooldownMs: number;
   private timer: NodeJS.Timeout | null = null;
-  private lastActionAt = 0;
+  private weatherTimer: NodeJS.Timeout | null = null;
+  private nextWeatherFetchAt: number | null = null;
+  private lastActionAt = Date.now(); // initialised to now so no action fires until actionCooldownMs after startup
   private latestWeather: { clouds?: number; uvi?: number; forecast_uv_median_today?: number; forecast_uv_median_tomorrow?: number; battery_cap?: number; fetchedAt: number; rangeStartIso?: string; rangeEndIso?: string } | null = null;
   private latestHourly: { dt: number; clouds?: number; uvi?: number; isDay?: boolean }[] | null = null;
   private latestNightRanges: { startMs: number; endMs: number }[] | null = null;
   private latestPower: Record<string, string | null> | null = null;
   private latestPlug: string | null = null;
   private scenarios: Scenario[] = [];
+  private actions: Action[] = [];
   private lastSelectedScenario: Scenario | null = null;
   private page: Page | null = null;
   private browser: Browser | null = null;
   private logsDir = path.join(__dirname, '..', '..', 'logs');
   private logFile = path.join(this.logsDir, 'activity.log');
+
+  private formatTimeGMT1(timestamp: number): string {
+    const date = new Date(timestamp);
+    // Format with Europe/Prague timezone (GMT+1 winter / GMT+2 summer)
+    return date.toLocaleString('en-GB', { timeZone: 'Europe/Prague', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  }
 
   private async appendLog(line: string) {
     try {
@@ -55,15 +72,20 @@ export class SolarHousekeeper {
   }
 
   constructor(opts: ControllerOptions = {}) {
-    this.intervalMs = opts.intervalMs ?? 30_000; // default 30s
+    this.intervalMs = opts.intervalMs ?? 2_000; // default 2s for responsiveness
     this.actionCooldownMs = opts.actionCooldownMs ?? 60_000; // default 60s
     void this.loadScenarios().catch(err => console.warn('loadScenarios failed:', err));
+    void this.loadActions().catch(err => console.warn('loadActions failed:', err));
+    // Start weather fetcher immediately (continues independent of controller state)
+    this.startWeatherFetcher();
   }
 
   private async loadScenarios() {
     try {
       const cfgPath = path.join(__dirname, '..', 'support', 'scenarios-config.json');
+      console.log('Loading scenarios from:', cfgPath);
       const raw = await fs.promises.readFile(cfgPath, 'utf-8');
+      console.log('Raw file content:', raw.substring(0, 300));
       const parsed = JSON.parse(raw) as Scenario[];
       this.scenarios = Array.isArray(parsed) ? parsed.filter(s => s && typeof s.trigger === 'string') : [];
       console.log('Loaded scenarios:', this.scenarios.map(s => s.id));
@@ -71,6 +93,64 @@ export class SolarHousekeeper {
       console.warn('Could not load scenarios config:', err);
       this.scenarios = [];
     }
+  }
+
+  private async loadActions() {
+    try {
+      const cfgPath = path.join(__dirname, '..', 'support', 'actions-config.json');
+      const raw = await fs.promises.readFile(cfgPath, 'utf-8');
+      const parsed = JSON.parse(raw) as Action[];
+      this.actions = Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      console.warn('Could not load actions config:', err);
+      this.actions = [];
+    }
+  }
+
+  private startWeatherFetcher() {
+    // Fetch weather immediately
+    void this.fetchLatestWeather().catch(err => console.warn('fetchLatestWeather failed:', err));
+    
+    // Then fetch every 120 seconds (independent of controller state)
+    this.nextWeatherFetchAt = Date.now() + 120_000;
+    this.weatherTimer = setInterval(() => {
+      void this.fetchLatestWeather().catch(err => console.warn('fetchLatestWeather failed:', err));
+      this.nextWeatherFetchAt = Date.now() + 120_000;
+    }, 120_000); // 120s
+  }
+
+  private stopWeatherFetcher() {
+    if (this.weatherTimer) {
+      clearInterval(this.weatherTimer);
+      this.weatherTimer = null;
+      this.nextWeatherFetchAt = null;
+    }
+  }
+
+  getNextWeatherFetchAt() {
+    return this.nextWeatherFetchAt;
+  }
+
+  private getActionLabel(actionId: string): string {
+    const action = this.actions.find(a => a.id === actionId);
+    return action?.label || actionId;
+  }
+
+  private wouldCauseStateChange(actionId: string): boolean {
+    // If plug state is not yet known, refuse to write — wait for a confirmed read
+    if (this.latestPlug === null && (actionId === 'turn_on_plug' || actionId === 'turn_off_plug')) {
+      console.log('wouldCauseStateChange: plug state unknown, skipping', actionId);
+      return false;
+    }
+    // turn_on_plug should only run if plug is currently off
+    if (actionId === 'turn_on_plug' && this.latestPlug === 'on') {
+      return false; // already on, no change
+    }
+    // turn_off_plug should only run if plug is currently on
+    if (actionId === 'turn_off_plug' && this.latestPlug === 'off') {
+      return false; // already off, no change
+    }
+    return true; // will cause a change
   }
 
   private computePowerTotal(): number | null {
@@ -123,8 +203,43 @@ export class SolarHousekeeper {
         if (!s.enabled) continue;
         if (s.trigger && this.evaluateCondition(s.trigger)) {
           console.log('Scenario matched:', s.id, '->', s.actionId);
+
+          // Mark the scenario as selected so UI shows it even if we skip execution
           this.lastSelectedScenario = s;
+
+          // Check if this action would cause a state change
+          if (!this.wouldCauseStateChange(s.actionId)) {
+            console.log('Skipping action; already in target state:', { actionId: s.actionId, currentPlug: this.latestPlug });
+            const nowSkip = Date.now();
+            const actionLabelSkip = this.getActionLabel(s.actionId);
+            void this.appendLog(JSON.stringify({
+              kind: 'action',
+              ts: nowSkip,
+              timeStr: this.formatTimeGMT1(nowSkip),
+              scenarioId: s.id,
+              scenarioLabel: s.label || s.id,
+              actionId: s.actionId,
+              actionLabel: actionLabelSkip,
+              status: 'skipped',
+              reason: 'already_in_target_state'
+            }));
+            return;
+          }
+
           await performActionById(s.actionId, this.page);
+          // Log the action to activity log with action label
+          const actionLabel = this.getActionLabel(s.actionId);
+          const now = Date.now();
+          void this.appendLog(JSON.stringify({
+            kind: 'action',
+            ts: now,
+            timeStr: this.formatTimeGMT1(now),
+            scenarioId: s.id,
+            scenarioLabel: s.label || s.id,
+            actionId: s.actionId,
+            actionLabel: actionLabel,
+            status: 'executed'
+          }));
           return;
         }
       }
@@ -141,6 +256,8 @@ export class SolarHousekeeper {
   }
 
   status() {
+    // compute which scenarios currently match (best-effort)
+    const matched = this.scenarios.map(s => ({ id: s.id, label: s.label, matched: !!(s.trigger && this.evaluateCondition(s.trigger)) }));
     return {
       state: this.state,
       lastActionAt: this.lastActionAt,
@@ -150,6 +267,7 @@ export class SolarHousekeeper {
       latestPower: this.latestPower,
       running: !!this.timer,
       latestPlug: this.latestPlug,
+      matchedScenarios: matched,
     };
   }
 
@@ -158,9 +276,12 @@ export class SolarHousekeeper {
   }
 
   private setState(s: State) {
-    this.state = s;
-    console.log(new Date().toISOString(), 'state ->', s);
-    void this.appendLog(`${new Date().toISOString()} state -> ${s}`);
+    if (this.state !== s) {
+      this.state = s;
+      const now = Date.now();
+      console.log(this.formatTimeGMT1(now), 'state ->', s);
+      void this.appendLog(`${this.formatTimeGMT1(now)} state -> ${s}`);
+    }
   }
 
   private now() {
@@ -168,11 +289,11 @@ export class SolarHousekeeper {
   }
 
   async checkOnce() {
-    console.log(new Date().toISOString(), 'checkOnce', { state: this.state });
+    console.log(this.formatTimeGMT1(Date.now()), 'checkOnce', { state: this.state });
 
     try {
-      // refresh latest weather on each check (best-effort)
-      void this.fetchLatestWeather().catch(err => console.warn('fetchLatestWeather failed:', err));
+      // Weather is fetched passively every 120s, so no need to fetch here
+      // This keeps the passive cycle clean and uninterrupted
 
       if (this.state === State.Idle) {
         this.setState(State.Busy);
@@ -233,9 +354,66 @@ export class SolarHousekeeper {
     }
     void this.reset();
     console.log('Solar Housekeeper stopped');
+    // Note: weather fetcher continues independently
   }
 
   async forceAction(actionId?: string) {
+    // If we don't have a persistent page, try an ephemeral login to perform the action
+    if (!this.page) {
+      try {
+        console.log('No page available; attempting ephemeral login to perform forced action');
+        const { browser, page } = await login();
+        try {
+          this.setState(State.Busy);
+          if (typeof actionId === 'string' && actionId.length > 0) {
+            await performActionById(actionId, page);
+            const nowF = Date.now();
+            void this.appendLog(JSON.stringify({ kind: 'action', ts: nowF, timeStr: this.formatTimeGMT1(nowF), scenarioId: null, scenarioLabel: null, actionId: actionId, actionLabel: this.getActionLabel(actionId), status: 'executed', manual: true }));
+          } else {
+            await runAction(page);
+            const nowD = Date.now();
+            void this.appendLog(JSON.stringify({ kind: 'action', ts: nowD, timeStr: this.formatTimeGMT1(nowD), scenarioId: null, scenarioLabel: null, actionId: 'default', actionLabel: 'default', status: 'executed', manual: false }));
+          }
+
+          // update power/plug state after action using the ephemeral page
+          try {
+            const pwr = await extractPowerData(page);
+            const plug = await extractPlugStatus(page).catch(() => null);
+            if (pwr) this.latestPower = pwr;
+            if (plug) this.latestPlug = plug;
+            // also refresh weather object from any Battery_status found
+            try {
+              const statusStr = this.latestPower?.['Battery_status'];
+              if (statusStr && typeof statusStr === 'string') {
+                const m = String(statusStr).match(/(\d+[,.]?\d*)\s*%/);
+                if (m) {
+                  const num = Number(m[1].replace(',', '.'));
+                  if (!Number.isNaN(num)) {
+                    const weather = this.latestWeather ?? ({ fetchedAt: Date.now() } as any);
+                    weather.battery_cap = num;
+                    this.latestWeather = weather;
+                  }
+                }
+              }
+            } catch (e) { }
+          } catch (e) { console.warn('ephemeral extract after action failed:', e); }
+
+          // ensure we also fetch latest weather info
+          try { await this.fetchLatestWeather(); } catch (e) { console.warn('fetchLatestWeather after ephemeral action failed:', e); }
+        } finally {
+          try { await browser.close(); } catch (e) { /* ignore */ }
+        }
+        // done with ephemeral path
+        this.lastActionAt = this.now();
+        this.setState(State.Ready);
+        return;
+      } catch (err) {
+        console.warn('Ephemeral login/action failed, falling back to persistent login:', err);
+        // fall through to persistent login attempt
+      }
+    }
+
+    // If we have (or now obtained) a persistent page, use it
     if (!this.page) {
       console.warn('No page to run action on; will try to login first');
       await this.checkOnce();
@@ -246,8 +424,26 @@ export class SolarHousekeeper {
       try {
         if (typeof actionId === 'string' && actionId.length > 0) {
           await performActionById(actionId, this.page);
+          // Log the forced action to activity log (structured)
+          const nowF = Date.now();
+          void this.appendLog(JSON.stringify({ kind: 'action', ts: nowF, timeStr: this.formatTimeGMT1(nowF), scenarioId: null, scenarioLabel: null, actionId: actionId, actionLabel: this.getActionLabel(actionId), status: 'executed', manual: true }));
+          try { await this.fetchLatestWeather(); } catch (e) { console.warn('fetchLatestWeather after forced action failed:', e); }
         } else {
           await runAction(this.page);
+          const nowD = Date.now();
+          void this.appendLog(JSON.stringify({
+            kind: 'action',
+            ts: nowD,
+            timeStr: this.formatTimeGMT1(nowD),
+            scenarioId: null,
+            scenarioLabel: null,
+            actionId: 'default',
+            actionLabel: 'default',
+            status: 'executed',
+            manual: false
+          }));
+          // refresh after default action as well
+          try { await this.fetchLatestWeather(); } catch (e) { console.warn('fetchLatestWeather after default action failed:', e); }
         }
       } catch (err) {
         console.error('forceAction error:', err);
@@ -263,6 +459,41 @@ export class SolarHousekeeper {
   async fetchWeatherNow() {
     await this.fetchLatestWeather();
     return { summary: this.latestWeather, hourly: this.latestHourly, nightRanges: this.latestNightRanges, power: this.latestPower };
+  }
+
+  // Public method to perform an ephemeral login and read the /plug page
+  // Updates `latestPower`, `latestPlug`, and `latestWeather` based on extractor results.
+  async refreshPowerFromPlugPage() {
+    try {
+      const { browser, page } = await login();
+      try {
+        // navigate explicitly to plug page for reliable switch status
+        try { await page.goto('https://app.infigy.cz/plug', { waitUntil: 'networkidle' }); } catch (e) { /* ignore */ }
+        const pwr = await extractPowerData(page).catch(() => null);
+        const plug = await extractPlugStatus(page).catch(() => null);
+        if (pwr) this.latestPower = pwr;
+        if (plug) this.latestPlug = plug;
+        // If extractor returned a battery percent (e.g. "98%"), set battery_cap
+        try {
+          const statusStr = this.latestPower?.['Battery_status'] ?? null;
+          if (statusStr && typeof statusStr === 'string') {
+            const m = String(statusStr).match(/(\d+[,.]?\d*)\s*%/);
+            if (m) {
+              const num = Number(m[1].replace(',', '.'));
+              if (!Number.isNaN(num)) {
+                const weather = this.latestWeather ?? ({ fetchedAt: Date.now() } as any);
+                weather.battery_cap = num;
+                this.latestWeather = weather;
+              }
+            }
+          }
+        } catch (e) { /* ignore */ }
+      } finally {
+        try { await browser.close(); } catch (e) { /* ignore */ }
+      }
+    } catch (err) {
+      console.warn('refreshPowerFromPlugPage failed:', err);
+    }
   }
 
   getScenarios() {
@@ -381,31 +612,63 @@ export class SolarHousekeeper {
         }
       }
 
-      // Extract battery capacity percentage from power data
-      // Note: this is the battery capacity %, not the Baterie power reading (which is in kW)
+      // Extract battery capacity percentage from power data only if explicitly provided as percent.
+      // Do NOT interpret Battery power (kW) as capacity.
       let battery_cap: number | undefined;
-      const batteryCapStr = this.latestPower?.['Baterie'];
-      if (batteryCapStr) {
-        const batteryCapNum = Number(String(batteryCapStr).replace(/[^0-9.-]+/g, ''));
-        if (!Number.isNaN(batteryCapNum)) {
-          battery_cap = batteryCapNum;
-        }
-      }
 
       this.latestHourly = hourlyWithDay;
       this.latestNightRanges = nightRanges;
       this.latestWeather = { clouds, uvi, forecast_uv_median_today, forecast_uv_median_tomorrow, battery_cap, fetchedAt: nowMs, rangeStartIso, rangeEndIso };
 
-      // try to extract power data from portal using Playwright
+      // --- SolaX API: fetch inverter power data (primary source) ---
+      let solaxFetched = false;
+      if (process.env.SOLAX_WIFI_SN) {
+        try {
+          const { power: solaxPower, battery_cap: solaxBatteryCap } = await getSolaxPowerData();
+          this.latestPower = solaxPower;
+          if (solaxBatteryCap !== null) {
+            this.latestWeather.battery_cap = solaxBatteryCap;
+          }
+          solaxFetched = true;
+          console.log('SolaX power data fetched:', solaxPower);
+        } catch (err) {
+          console.warn('SolaX API fetch failed, falling back to Playwright:', err);
+        }
+      }
+
+      // try to extract power data from portal using Playwright (fallback if SolaX not available)
+      if (!solaxFetched) {
       try {
         if (this.page) {
           this.latestPower = await extractPowerData(this.page);
-          try {
-            this.latestPlug = await extractPlugStatus(this.page);
-          } catch (e) {
-            console.warn('extractPlugStatus failed:', e);
+          // If extracted power data is all nulls, session/page might be stale — try ephemeral login fallback
+          const hasAny = this.latestPower && Object.values(this.latestPower).some(v => v !== null);
+          if (!hasAny) {
+            console.warn('extractPowerData from existing page returned all nulls; attempting ephemeral login fallback');
+            try {
+              const { browser, page } = await login();
+              try {
+                const fallbackPower = await extractPowerData(page);
+                const fallbackPlug = await extractPlugStatus(page).catch(() => null);
+                // only override if fallback returned any values
+                const fallbackHasAny = fallbackPower && Object.values(fallbackPower).some(v => v !== null);
+                if (fallbackHasAny) {
+                  this.latestPower = fallbackPower;
+                  this.latestPlug = fallbackPlug;
+                }
+              } finally {
+                await browser.close();
+              }
+            } catch (err) {
+              console.warn('extractPowerData ephemeral fallback failed:', err);
+            }
+          } else {
+            try {
+              this.latestPlug = await extractPlugStatus(this.page);
+            } catch (e) {
+              console.warn('extractPlugStatus failed:', e);
+            }
           }
-          void this.appendLog(JSON.stringify({ ts: nowMs, kind: 'power', power: this.latestPower }));
         } else {
           // ephemeral login to grab power info
           try {
@@ -417,7 +680,6 @@ export class SolarHousekeeper {
               } catch (e) {
                 console.warn('extractPlugStatus ephemeral failed:', e);
               }
-              void this.appendLog(JSON.stringify({ ts: nowMs, kind: 'power', power: this.latestPower }));
             } finally {
               await browser.close();
             }
@@ -427,6 +689,48 @@ export class SolarHousekeeper {
         }
       } catch (err) {
         console.warn('Error extracting power data:', err);
+      }
+      } // end !solaxFetched
+
+      // Plug status is only available via Playwright (infigy web app).
+      // Read it every cycle regardless of whether the controller is started.
+      // Uses the persistent page when running, otherwise a short-lived ephemeral
+      // session — read-only, no write actions performed.
+      try {
+        if (this.page) {
+          this.latestPlug = await extractPlugStatus(this.page);
+          console.log('Plug status:', this.latestPlug);
+        } else {
+          const { browser: eplBrowser, page: eplPage } = await login();
+          try {
+            this.latestPlug = await extractPlugStatus(eplPage);
+            console.log('Plug status (ephemeral):', this.latestPlug);
+          } finally {
+            await eplBrowser.close();
+          }
+        }
+      } catch (e) {
+        console.warn('extractPlugStatus failed:', e);
+        this.latestPlug = null;
+      }
+
+      // If extractor returned a battery percent (e.g. "98%"), prefer that for battery_cap
+      try {
+        // Prefer explicit battery status percent returned by the extractor under 'Battery_status'
+        const statusStr = this.latestPower?.['Battery_status'] ?? null;
+        if (statusStr && typeof statusStr === 'string') {
+          const m = String(statusStr).match(/(\d+[,.]?\d*)\s*%/);
+          if (m) {
+            const num = Number(m[1].replace(',', '.'));
+            if (!Number.isNaN(num)) {
+              const weather = this.latestWeather ?? ({ fetchedAt: nowMs } as any);
+              weather.battery_cap = num;
+              this.latestWeather = weather;
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
       }
 
       // append a sample to time-series storage (weather + power + plug)

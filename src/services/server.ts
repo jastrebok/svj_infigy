@@ -20,6 +20,7 @@ function flattenMetricRow(row: any) {
   const flat: Record<string, any> = { ts: row.ts };
 
   if (typeof row.plug !== 'undefined') flat.plug = row.plug;
+  if (typeof flat.plug === 'string') flat.plug = flat.plug.toUpperCase();
   if (row.weather && typeof row.weather === 'object') {
     for (const key of Object.keys(row.weather)) {
       flat[`weather_${key}`] = row.weather[key];
@@ -60,10 +61,10 @@ function formatInfluxRow(row: any, measurement = 'solar_metrics') {
   if (typeof flat.weather_clouds === 'number') fields.clouds = flat.weather_clouds;
   if (typeof flat.weather_uvi === 'number') fields.uvi = flat.weather_uvi;
   if (typeof flat.weather_fetchedAt === 'number') fields.weather_fetchedAt = flat.weather_fetchedAt;
-  if (typeof flat.power_dum === 'string') fields.power_dum = String(flat.power_dum);
-  if (typeof flat.power_fve === 'string') fields.power_fve = String(flat.power_fve);
-  if (typeof flat.power_baterie === 'string') fields.power_baterie = String(flat.power_baterie);
-  if (typeof flat.power_sit === 'string') fields.power_sit = String(flat.power_sit);
+  if (typeof flat.power_house === 'string') fields.power_house = String(flat.power_house);
+  if (typeof flat.power_photovoltaics === 'string') fields.power_photovoltaics = String(flat.power_photovoltaics);
+  if (typeof flat.power_battery === 'string') fields.power_battery = String(flat.power_battery);
+  if (typeof flat.power_grid === 'string') fields.power_grid = String(flat.power_grid);
   if (typeof flat.power_total === 'number') fields.power_total = flat.power_total;
 
   const tagPairs = Object.entries(tags).map(([k,v]) => `${escapeInflux(k)}=${escapeInflux(v)}`);
@@ -81,41 +82,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Passive weather poll when controller is not running
-const PASSIVE_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-let passiveTimer: NodeJS.Timeout | null = null;
-let passiveNextFetchAt: number | null = null;
-
-function startPassive() {
-  if (passiveTimer) return;
-  passiveNextFetchAt = Date.now() + PASSIVE_INTERVAL_MS;
-  passiveTimer = setInterval(async () => {
-    try {
-      await controller.fetchWeatherNow();
-    } catch (err) {
-      console.warn('Passive fetch failed:', err);
-    } finally {
-      passiveNextFetchAt = Date.now() + PASSIVE_INTERVAL_MS;
-    }
-  }, PASSIVE_INTERVAL_MS);
-  console.log('Passive weather polling started. intervalMs=', PASSIVE_INTERVAL_MS);
-}
-
-function stopPassive() {
-  if (!passiveTimer) return;
-  clearInterval(passiveTimer);
-  passiveTimer = null;
-  passiveNextFetchAt = null;
-  console.log('Passive weather polling stopped');
-}
+// NOTE: Weather fetcher runs inside controller as a single, continuous timer.
 
 // API
 app.get('/api/status', (_req, res) => {
   const base = controller.status();
+  // Normalize plug value to uppercase ON/OFF for UI consistency
+  if (base && typeof base.latestPlug === 'string') base.latestPlug = base.latestPlug.toUpperCase();
   res.json(Object.assign(base, {
     controllerRunning: controller.isRunning(),
-    passiveNextFetchAt,
-    passiveIntervalMs: PASSIVE_INTERVAL_MS,
+    nextFetchAt: controller.getNextWeatherFetchAt(),
+    fetchIntervalMs: 120_000,
     currentScenario: controller.getCurrentScenario(),
   }));
 });
@@ -169,15 +146,11 @@ app.get('/api/metrics/line', async (req, res) => {
 
 app.post('/api/start', (_req, res) => {
   controller.start();
-  // controller is active -> stop passive polling if running
-  stopPassive();
   res.json({ ok: true });
 });
 
 app.post('/api/stop', (_req, res) => {
   controller.stop();
-  // start passive polling when controller stopped
-  startPassive();
   res.json({ ok: true });
 });
 
@@ -185,6 +158,19 @@ app.post('/api/force', async (_req, res) => {
   try {
     const actionId = (_req && _req.body && typeof _req.body.actionId === 'string') ? _req.body.actionId : undefined;
     await controller.forceAction(actionId);
+    // If the client requested a refresh of power data, also fetch latest weather+power now
+    if (actionId === 'refresh_power_data') {
+      try {
+        await controller.fetchWeatherNow();
+      } catch (e) {
+        console.warn('fetchWeatherNow after force refresh failed:', e);
+      }
+      try {
+        await controller.refreshPowerFromPlugPage();
+      } catch (e) {
+        console.warn('refreshPowerFromPlugPage after force refresh failed:', e);
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });
@@ -278,5 +264,4 @@ app.listen(port, () => {
 });
 
 // If started directly, don't auto-start the controller; let user control via UI
-// Start passive polling by default when controller is not running
-if (!controller.isRunning()) startPassive();
+// Controller instantiates and starts its internal weather fetcher automatically

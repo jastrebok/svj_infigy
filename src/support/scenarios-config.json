@@ -1,16 +1,16 @@
 [
   {
     "id": "night_operation",
-    "label": "Night Operation",
+    "label": "Night Plug Operation",
     "description": "Actions to take during night when conditions are met",
     "trigger": "isNight && (battery_cap < 50)",
     "actionId": "turn_off_plug",
     "enabled": true
   },
   {
-    "id": "morning_operation",
-    "label": "Morning Operation",
-    "description": "Actions to take during morning when UV forecast is available and conditions are favorable",
+    "id": "day_operation",
+    "label": "Day Plug Operation",
+    "description": "Actions to take during day when UV forecast is available and conditions are favorable",
     "trigger": "forecast_uv_median_today>2 && battery_cap > 40 && isDay",
     "actionId": "turn_on_plug",
     "enabled": true

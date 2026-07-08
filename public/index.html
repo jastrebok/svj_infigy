@@ -22,97 +22,178 @@
     <div>
       <button id="start">Start</button>
       <button id="stop">Stop</button>
-      <label style="margin-left:8px">
-        <select id="force-action-select" style="margin-right:6px">
-          <option value="">Default action</option>
-        </select>
-      </label>
-      <button id="force">Force Action</button>
       <button id="refresh">Refresh</button>
       <button id="toggle-browser-view">Browser view: off</button>
-      <label style="margin-left:12px">History:
-        <select id="history-select">
-          <option value="6">6h</option>
-          <option value="12" selected>12h</option>
-          <option value="24">24h</option>
-        </select>
-      </label>
     </div>
 
-    <div class="status">
-      <div><strong>State:</strong> <span id="state">n/a</span></div>
-      <div><strong>Last action:</strong> <span id="last">n/a</span></div>
-      <div><strong>Interval (ms):</strong> <span id="interval">n/a</span></div>
-      <div><strong>Action cooldown (ms):</strong> <span id="cooldown">n/a</span></div>
-      <div><strong>Scenario selected:</strong> <span id="current-scenario">none</span></div>
-      <div style="margin-top:12px">
-      <div><strong>Next passive refresh:</strong> <span id="next-refresh">n/a</span> — <span id="countdown">—</span></div>
-      
-        <strong>Weather:</strong>
-        <table class="weather-compact" style="margin-top:8px">
-          <tr>
-            <td style="padding-right:8px"><span id="weather-icon" class="weather-icon" aria-hidden="true">—</span></td>
-            <td>
-              <div style="font-weight:600"><span id="weather-clouds">n/a</span>%</div>
-              <div style="font-size:12px; color:var(--muted)"><span id="weather-uvi">n/a</span> UV • <span id="weather-fetched">n/a</span></div>
-              <div style="font-size:12px; color:var(--muted)">UV forecast: <span id="weather-forecast-uv-today">n/a</span> (today) • <span id="weather-forecast-uv-tomorrow">n/a</span> (tomorrow)</div>
-            </td>
-          </tr>
-        </table>
+    <div class="sc-card">
+
+      <!-- Header -->
+      <div class="sc-header">
+        <div class="sc-title-group">
+          <div class="sc-icon-wrap">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="13" rx="1.5"/>
+              <line x1="7" y1="7" x2="7" y2="20"/><line x1="12" y1="7" x2="12" y2="20"/><line x1="17" y1="7" x2="17" y2="20"/>
+              <line x1="2" y1="12.5" x2="22" y2="12.5"/>
+              <line x1="9" y1="3" x2="12" y2="7"/><line x1="15" y1="3" x2="12" y2="7"/>
+            </svg>
+          </div>
+          <div>
+            <div class="sc-title">Solar Controller</div>
+            <div class="sc-subtitle">Last action: <span id="last">never</span></div>
+          </div>
+        </div>
+        <div class="sc-state-badge">
+          <span class="sc-dot" id="state-dot"></span>
+          <span id="state">n/a</span>
+        </div>
       </div>
+
+      <div class="sc-divider"></div>
+
+      <!-- Row: Scenario | Matched scenarios | Next refresh -->
+      <div class="sc-row-3">
+        <div class="sc-cell">
+          <div class="sc-cell-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg></div>
+          <div class="sc-cell-label">Scenario</div>
+          <div class="sc-cell-value" id="current-scenario">None</div>
+        </div>
+        <div class="sc-cell">
+          <div class="sc-cell-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="2" x2="12" y2="5.5"/><line x1="12" y1="18.5" x2="12" y2="22"/><line x1="2" y1="12" x2="5.5" y2="12"/><line x1="18.5" y1="12" x2="22" y2="12"/></svg></div>
+          <div class="sc-cell-label">Matched scenarios</div>
+          <div class="sc-cell-value" id="matched-scenarios">None</div>
+        </div>
+        <div class="sc-cell">
+          <div class="sc-cell-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg></div>
+          <div class="sc-cell-label">Next refresh</div>
+          <div class="sc-cell-row">
+            <div class="sc-cell-value" id="next-refresh-time">n/a</div>
+            <span class="sc-badge" id="countdown">—</span>
+          </div>
+          <div class="sc-cell-meta" id="next-refresh-date">—</div>
+        </div>
+      </div>
+
+      <div class="sc-divider"></div>
+
+      <!-- Row: Interval | Action cooldown -->
+      <div class="sc-row-2">
+        <div class="sc-cell">
+          <div class="sc-cell-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg></div>
+          <div class="sc-cell-label">Interval</div>
+          <div class="sc-cell-value"><span id="interval">n/a</span></div>
+        </div>
+        <div class="sc-cell">
+          <div class="sc-cell-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14"/><path d="M5 22h14"/><path d="M6 2l6 9 6-9"/><path d="M6 22l6-9 6 9"/></svg></div>
+          <div class="sc-cell-label">Action cooldown</div>
+          <div class="sc-cell-value"><span id="cooldown">n/a</span></div>
+        </div>
+      </div>
+
+      <div class="sc-divider"></div>
+
+      <!-- Weather strip -->
+      <div class="sc-weather">
+        <div class="sc-weather-icon-wrap">
+          <span id="weather-icon" aria-hidden="true">—</span>
+        </div>
+        <div class="sc-weather-content">
+          <div class="sc-weather-title">Weather</div>
+          <div class="sc-row-3">
+            <div class="sc-cell">
+              <div class="sc-cell-label">UV index</div>
+              <div class="sc-cell-value"><span id="weather-uvi">n/a</span></div>
+              <div class="sc-cell-meta">Clouds: <span id="weather-clouds">n/a</span>% &nbsp;·&nbsp; <span id="weather-fetched">n/a</span></div>
+            </div>
+            <div class="sc-cell">
+              <div class="sc-cell-label">UV forecast (today)</div>
+              <div class="sc-cell-value"><span id="weather-forecast-uv-today">n/a</span></div>
+            </div>
+            <div class="sc-cell">
+              <div class="sc-cell-label">UV forecast (tomorrow)</div>
+              <div class="sc-cell-value"><span id="weather-forecast-uv-tomorrow">n/a</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <div style="margin-top:12px">
-      <strong>Power (latest):</strong>
+      <strong>Power data:</strong>
       <table style="width:100%; margin-top:8px; border-collapse:collapse;">
         <tr>
-          <td style="border:1px solid #eee; padding:6px">Dům</td>
+          <td style="border:1px solid #eee; padding:6px">House</td>
           <td style="border:1px solid #eee; padding:6px">
             <div style="display:flex; align-items:center; justify-content:space-between">
-              <span id="power-dum">n/a</span>
-              <canvas id="spark-dum" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+              <span id="power-house">n/a</span>
+              <canvas id="spark-house" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
             </div>
-            <div style="font-size:11px; color:var(--muted)" id="sparkcount-dum">samples: 0</div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-house">samples: 0</div>
           </td>
         </tr>
         <tr>
-          <td style="border:1px solid #eee; padding:6px">FVE</td>
+          <td style="border:1px solid #eee; padding:6px">Photovoltaics</td>
           <td style="border:1px solid #eee; padding:6px">
             <div style="display:flex; align-items:center; justify-content:space-between">
-              <span id="power-fve">n/a</span>
-              <canvas id="spark-fve" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+              <span id="power-photovoltaics">n/a</span>
+              <canvas id="spark-photovoltaics" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
             </div>
-            <div style="font-size:11px; color:var(--muted)" id="sparkcount-fve">samples: 0</div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-photovoltaics">samples: 0</div>
           </td>
         </tr>
         <tr>
-          <td style="border:1px solid #eee; padding:6px">Baterie</td>
+          <td style="border:1px solid #eee; padding:6px">Battery</td>
           <td style="border:1px solid #eee; padding:6px">
             <div style="display:flex; align-items:center; justify-content:space-between">
-              <span id="power-baterie">n/a</span>
-              <canvas id="spark-baterie" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+              <span id="power-battery">n/a</span>
+              <canvas id="spark-battery" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
             </div>
-            <div style="font-size:11px; color:var(--muted)" id="sparkcount-baterie">samples: 0</div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-battery">samples: 0</div>
           </td>
         </tr>
         <tr>
-          <td style="border:1px solid #eee; padding:6px">Zásuvka</td>
-          <td id="power-plug" style="border:1px solid #eee; padding:6px">n/a</td>
+          <td style="border:1px solid #eee; padding:6px">Battery Capacity</td>
+          <td style="border:1px solid #eee; padding:6px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span id="power-battery-cap">n/a</span>
+              <canvas id="spark-battery-cap" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+            </div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-battery-cap">samples: 0</div>
+          </td>
         </tr>
         <tr>
-          <td style="border:1px solid #eee; padding:6px">Síť</td>
-          <td id="power-sit" style="border:1px solid #eee; padding:6px">n/a</td>
+          <td style="border:1px solid #eee; padding:6px">Plug</td>
+          <td style="border:1px solid #eee; padding:6px">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <span id="power-plug">n/a</span>
+              <canvas id="spark-plug" width="120" height="24" style="display:inline-block; margin-left:8px; vertical-align:middle"></canvas>
+            </div>
+            <div style="font-size:11px; color:var(--muted)" id="sparkcount-plug">samples: 0</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:6px">Grid</td>
+          <td id="power-grid" style="border:1px solid #eee; padding:6px">n/a</td>
         </tr>
       </table>
     </div>
 
     <div style="margin-top:18px;">
-      <div style="height:240px; margin-bottom:12px;">
-        <canvas id="weatherChart" width="640" height="240" style="width:100%; height:240px; background:#fff; border:1px solid #eee;"></canvas>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <span style="font-size:13px; font-weight:600; color:var(--text)">Weather &amp; UV forecast</span>
+        <button id="reset-zoom-weather" style="font-size:11px; padding:2px 8px;">Reset zoom</button>
       </div>
-      <div style="margin-bottom:6px; font-size:14px; font-weight:600; color:var(--text);">Power overview (Dům / FVE / Baterie / Síť) with plug on/off shading</div>
+      <div style="height:240px; margin-bottom:12px;">
+        <canvas id="weatherChart" width="640" height="240" style="width:100%; height:240px; background:#fff; border:1px solid #eee; cursor:grab;"></canvas>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <div style="font-size:14px; font-weight:600; color:var(--text);">Power overview (House / Photovoltaics / Battery / Grid) with plug on/off shading</div>
+        <button id="reset-zoom-power" style="font-size:11px; padding:2px 8px;">Reset zoom</button>
+      </div>
       <div style="height:220px;">
-        <canvas id="powerChart" width="640" height="220" style="width:100%; height:220px; background:#fff; border:1px solid #eee;"></canvas>
+        <canvas id="powerChart" width="640" height="220" style="width:100%; height:220px; background:#fff; border:1px solid #eee; cursor:grab;"></canvas>
       </div>
       <div id="chart-error" style="color:#900; display:none; margin-top:6px"></div>
     </div>
@@ -140,9 +221,20 @@
       <div id="config-actions" style="margin-top:12px">
         <!-- actions config table will be rendered here -->
       </div>
+      <div style="margin-top:20px; padding-top:14px; border-top:1px solid var(--border,#ddd)">
+        <div style="font-weight:600; margin-bottom:8px; font-size:14px">Debug: Force Action</div>
+        <div style="display:flex; align-items:center; gap:8px">
+          <select id="force-action-select">
+            <option value="">Default action</option>
+          </select>
+          <button id="force">Force Action</button>
+        </div>
+      </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
