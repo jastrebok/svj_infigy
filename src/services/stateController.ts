@@ -1,5 +1,5 @@
 import { login, runAction, extractPowerData, extractPlugStatus, performActionById } from './playwrightActions';
-import { appendEntry } from './storage';
+import { appendEntry, query as queryMetrics } from './storage';
 import { fetchWeather } from './weatherAPI';
 import { getSolaxPowerData } from './solaxAPI';
 import fs from 'fs';
@@ -71,6 +71,13 @@ export class SolarHousekeeper {
     }
   }
 
+  // Public hook so the API layer can record non-action events (config edits,
+  // screenshot cleanup, etc.) into the same activity log the UI reads from.
+  async logEvent(kind: string, details: Record<string, any> = {}) {
+    const now = Date.now();
+    await this.appendLog(JSON.stringify({ kind, ts: now, timeStr: this.formatTimeGMT1(now), ...details }));
+  }
+
   constructor(opts: ControllerOptions = {}) {
     this.intervalMs = opts.intervalMs ?? 2_000; // default 2s for responsiveness
     this.actionCooldownMs = opts.actionCooldownMs ?? 60_000; // default 60s
@@ -105,6 +112,15 @@ export class SolarHousekeeper {
       console.warn('Could not load actions config:', err);
       this.actions = [];
     }
+  }
+
+  // Public reload hooks so config can be edited/saved from the API without restarting the server
+  async reloadScenarios() {
+    await this.loadScenarios();
+  }
+
+  async reloadActions() {
+    await this.loadActions();
   }
 
   private startWeatherFetcher() {
@@ -568,7 +584,13 @@ export class SolarHousekeeper {
       }
 
       // Calculate UV forecast medians for today and tomorrow
-      // Note: median is more robust to outliers than mean
+      // Note: median is more robust to outliers than mean.
+      // IMPORTANT: `hourlyWithDay` only contains hours from "now" onward (see hourlyInRange
+      // above), so hours of *today* that have already elapsed are never present in it. If we
+      // only used that array, the "today" median would silently shrink to "the remainder of
+      // today" as the day goes on (and become empty/n-a after sunset). To represent the whole
+      // current day, we merge those forecasted (future) hours with the actual observed samples
+      // already recorded for today (stored every fetch cycle via storage.appendEntry).
       const now = new Date(nowMs);
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const tomorrowStart = new Date(todayStart);
@@ -576,7 +598,7 @@ export class SolarHousekeeper {
       const dayAfterTomorrowStart = new Date(tomorrowStart);
       dayAfterTomorrowStart.setDate(dayAfterTomorrowStart.getDate() + 1);
 
-      const todayHours = hourlyWithDay.filter(h => {
+      const todayHoursForecast = hourlyWithDay.filter(h => {
         const hDate = new Date(h.dt * 1000);
         return hDate >= todayStart && hDate < tomorrowStart && h.isDay;
       });
@@ -584,6 +606,25 @@ export class SolarHousekeeper {
         const hDate = new Date(h.dt * 1000);
         return hDate >= tomorrowStart && hDate < dayAfterTomorrowStart && h.isDay;
       });
+
+      // Pull in already-elapsed hours of today from the recorded time-series so the median
+      // covers the full day, not just the part still ahead of "now".
+      let todayHoursObserved: { dt: number; uvi?: number; isDay: boolean }[] = [];
+      try {
+        const storedToday = await queryMetrics(todayStart.getTime());
+        todayHoursObserved = storedToday
+          .filter(row => row && typeof row.ts === 'number' && row.ts < nowMs && row.weather && typeof row.weather.uvi === 'number')
+          .map(row => {
+            const tSec = Math.floor(row.ts / 1000);
+            const found = daily.find(d => tSec >= d.sunrise && tSec <= d.sunset);
+            return { dt: tSec, uvi: row.weather.uvi as number, isDay: found !== undefined };
+          })
+          .filter(h => h.isDay);
+      } catch (e) {
+        console.warn('Failed to load observed today samples for UV median:', e);
+      }
+
+      const todayHours = [...todayHoursObserved, ...todayHoursForecast];
 
       // Helper function to calculate median
       const calcMedian = (values: (number | undefined)[]) => {

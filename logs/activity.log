@@ -514,3 +514,8 @@
 26/06/2026, 14:43:22 state -> busy
 {"kind":"action","ts":1782477804368,"timeStr":"26/06/2026, 14:43:24","scenarioId":null,"scenarioLabel":null,"actionId":"refresh_power_data","actionLabel":"Refresh Power Data","status":"executed","manual":true}
 26/06/2026, 14:43:31 state -> ready
+26/08/2026, 20:35:01 state -> busy
+{"kind":"action","ts":1787769301803,"timeStr":"26/08/2026, 20:35:01","scenarioId":null,"scenarioLabel":null,"actionId":"take_screenshot","actionLabel":"Take Screenshot","status":"executed","manual":true}
+26/08/2026, 20:35:09 state -> ready
+{"kind":"config","ts":1787769465469,"timeStr":"26/08/2026, 20:37:45","target":"actions","count":5,"ids":["turn_on_plug","turn_off_plug","toggle_plug","refresh_power_data","take_screenshot"]}
+{"kind":"screenshots_cleared","ts":1787769465954,"timeStr":"26/08/2026, 20:37:45","count":1,"beforeMs":1609459200000}

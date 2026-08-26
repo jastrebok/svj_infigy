@@ -236,3 +236,41 @@ pre {
   .sc-weather .sc-cell { border-right: none; border-bottom: 1px solid var(--line); padding: 0 0 12px; }
   .sc-weather .sc-cell:last-child { border-bottom: none; }
 }
+
+/* Config editor */
+.cfg-table { width: 100%; border-collapse: collapse; }
+.cfg-table th, .cfg-table td { border: 1px solid var(--line); padding: 6px; vertical-align: top; }
+.cfg-table th { background: #f8fafd; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.cfg-table input[type="text"],
+.cfg-table textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+  resize: vertical;
+}
+.cfg-table select { width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; background: #fff; color: var(--text); }
+.cfg-table textarea.cfg-trigger { font-family: monospace; min-height: 44px; }
+.cfg-table td.cfg-col-enabled, .cfg-table td.cfg-col-actions { text-align: center; white-space: nowrap; }
+.cfg-table textarea.cfg-trigger.drag-over { outline: 2px dashed var(--orange); outline-offset: -2px; }
+.cfg-remove-row { background: #fff; border: 1px solid var(--line); color: #b91c1c; cursor: pointer; border-radius: 4px; padding: 4px 8px; }
+.cfg-var-chip {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef2f7;
+  border: 1px solid var(--line);
+  font-family: monospace;
+  font-size: 12px;
+  cursor: grab;
+  user-select: none;
+}
+.cfg-var-chip:active { cursor: grabbing; }
+.cfg-save-msg { font-size: 12px; margin-left: 8px; }
+.cfg-save-msg.ok { color: var(--green); }
+.cfg-save-msg.err { color: #b91c1c; }
+

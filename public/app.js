@@ -393,7 +393,7 @@ function updateChartFromHourly(hourly) {
 }
 
 // Render chart from precomputed series arrays
-function updateChartFromSeries(entries, nowMs) {
+function updateChartFromSeries(entries, nowMs, medianInfo) {
   if (!entries || !entries.length) return;
   const ctx = document.getElementById('weatherChart').getContext('2d');
   if (!ctx) { showChartError('Canvas context not available'); return; }
@@ -450,6 +450,49 @@ function updateChartFromSeries(entries, nowMs) {
       ctx.moveTo(x, ca.top);
       ctx.lineTo(x, ca.bottom);
       ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  // Draws a dashed horizontal reference line (on the UV axis) spanning a single day,
+  // representing that day's whole-day UV forecast median (see stateController.fetchLatestWeather).
+  const pluginMedianLines = {
+    id: 'uvMedianLines',
+    afterDraw(chart) {
+      const info = chart.__medianInfo;
+      if (!info) return;
+      const { ctx, chartArea: ca, scales } = chart;
+      const xScale = scales.x;
+      const yScale = scales.y1;
+      if (!xScale || !yScale) return;
+      const segments = [
+        { value: info.todayMedian, startMs: info.todayStartMs, endMs: info.tomorrowStartMs, label: 'Today median UV', color: 'rgba(230,126,0,0.9)' },
+        { value: info.tomorrowMedian, startMs: info.tomorrowStartMs, endMs: info.dayAfterTomorrowStartMs, label: 'Tomorrow median UV', color: 'rgba(148,0,211,0.8)' },
+      ];
+      ctx.save();
+      for (const seg of segments) {
+        if (typeof seg.value !== 'number') continue;
+        const y = yScale.getPixelForValue(seg.value);
+        if (isNaN(y)) continue;
+        let left = xScale.getPixelForValue(seg.startMs);
+        let right = xScale.getPixelForValue(seg.endMs);
+        if (isNaN(left) && isNaN(right)) continue;
+        left = Math.max(ca.left, isNaN(left) ? ca.left : left);
+        right = Math.min(ca.right, isNaN(right) ? ca.right : right);
+        if (right <= left) continue;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = seg.color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = seg.color;
+        ctx.font = '11px Arial, sans-serif';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${seg.label}: ${seg.value.toFixed(1)}`, left + 4, y - 2);
+      }
       ctx.restore();
     }
   };
@@ -513,11 +556,12 @@ function updateChartFromSeries(entries, nowMs) {
       },
       plugins: { legend: { position: 'top' } }
     },
-    plugins: [pluginNight, pluginCurrentLine]
+    plugins: [pluginNight, pluginCurrentLine, pluginMedianLines]
   };
 
   if (weatherChart) {
     weatherChart.data.datasets = chartData.datasets;
+    weatherChart.__medianInfo = medianInfo || null;
     weatherChart.update('none');
     return;
   }
@@ -538,6 +582,7 @@ function updateChartFromSeries(entries, nowMs) {
       ...config,
       options: { ...config.options, plugins: { ...config.options.plugins, zoom: zoomOpts } }
     });
+    weatherChart.__medianInfo = medianInfo || null;
   } catch (err) {
     showChartError('Failed to create Chart: ' + String(err));
     console.error(err);
@@ -596,7 +641,17 @@ async function fetchAndRenderWeather() {
           fullStartMs,
           fullEndMs,
         };
-        updateChartFromSeries(allEntries, nowMs);
+        const todayStartMs = new Date(new Date(nowMs).getFullYear(), new Date(nowMs).getMonth(), new Date(nowMs).getDate()).getTime();
+        const tomorrowStartMs = todayStartMs + 24 * 60 * 60 * 1000;
+        const dayAfterTomorrowStartMs = tomorrowStartMs + 24 * 60 * 60 * 1000;
+        const medianInfo = {
+          todayMedian: typeof summary.forecast_uv_median_today === 'number' ? summary.forecast_uv_median_today : null,
+          tomorrowMedian: typeof summary.forecast_uv_median_tomorrow === 'number' ? summary.forecast_uv_median_tomorrow : null,
+          todayStartMs,
+          tomorrowStartMs,
+          dayAfterTomorrowStartMs,
+        };
+        updateChartFromSeries(allEntries, nowMs, medianInfo);
         // Draw sparklines for power values and render the larger power chart
         try {
           const keys = { house: 'House', photovoltaics: 'Photovoltaics', battery: 'Battery' };
@@ -962,30 +1017,42 @@ async function fetchAndShowLogs() {
       const pre = document.getElementById('logs-pre');
       if (pre) {
         const lines = (r.logs || '').split('\n').filter(l => l.trim());
-        // Parse JSON entries to find action logs
-        const actionLogs = [];
+        // Parse JSON entries to find activity worth summarizing (actions, config edits, screenshot cleanup)
+        const activityLogs = [];
         for (const line of lines) {
           try {
             const obj = JSON.parse(line);
-            if (obj && obj.kind === 'action') {
-              actionLogs.push(obj);
+            if (obj && (obj.kind === 'action' || obj.kind === 'config' || obj.kind === 'screenshots_cleared')) {
+              activityLogs.push(obj);
             }
           } catch (e) {
             // skip non-JSON lines
           }
         }
-        
-        // Show recent action logs first (newest to oldest)
-        if (actionLogs.length > 0) {
-          const recentActions = actionLogs.slice(-20).reverse();
-          let html = '<div style="margin-bottom: 12px;"><strong>Recent Actions (latest first):</strong></div>';
+
+        // Show recent activity first (newest to oldest)
+        if (activityLogs.length > 0) {
+          const recentActivity = activityLogs.slice(-20).reverse();
+          let html = '<div style="margin-bottom: 12px;"><strong>Recent Activity (latest first):</strong></div>';
           html += '<table style="width:100%; border-collapse:collapse; margin-bottom: 12px;">';
-          html += '<tr style="background:#f0f0f0;"><th style="border:1px solid #ccc; padding:6px; text-align:left;">Time</th><th style="border:1px solid #ccc; padding:6px; text-align:left;">Scenario</th><th style="border:1px solid #ccc; padding:6px; text-align:left;">Action</th></tr>';
-          for (const a of recentActions) {
+          html += '<tr style="background:#f0f0f0;"><th style="border:1px solid #ccc; padding:6px; text-align:left;">Time</th><th style="border:1px solid #ccc; padding:6px; text-align:left;">Type</th><th style="border:1px solid #ccc; padding:6px; text-align:left;">Details</th></tr>';
+          for (const a of recentActivity) {
             const time = a.timeStr || (a.ts ? new Date(a.ts).toLocaleString('en-GB', { timeZone: 'Europe/Prague' }) : 'n/a');
-            const scenario = a.scenarioLabel || 'Unknown';
-            const action = a.actionLabel || a.actionId || 'n/a';
-            html += `<tr><td style="border:1px solid #ccc; padding:6px;">${time}</td><td style="border:1px solid #ccc; padding:6px;">${scenario}</td><td style="border:1px solid #ccc; padding:6px;"><strong>${action}</strong></td></tr>`;
+            let type = 'Action';
+            let details = '';
+            if (a.kind === 'config') {
+              type = 'Config';
+              details = `Saved ${a.count ?? 0} ${escapeHtml(a.target || 'item(s)')}` + (Array.isArray(a.ids) && a.ids.length ? `: ${escapeHtml(a.ids.join(', '))}` : '');
+            } else if (a.kind === 'screenshots_cleared') {
+              type = 'Screenshots';
+              const cutoff = a.beforeMs ? new Date(a.beforeMs).toLocaleDateString('en-GB') : 'n/a';
+              details = `Cleared ${a.count ?? 0} screenshot(s) older than ${cutoff}`;
+            } else {
+              const scenario = a.scenarioLabel ? escapeHtml(a.scenarioLabel) + ' &rarr; ' : '';
+              const action = escapeHtml(a.actionLabel || a.actionId || 'n/a');
+              details = `${scenario}<strong>${action}</strong>` + (a.status && a.status !== 'executed' ? ` (${escapeHtml(a.status)})` : '');
+            }
+            html += `<tr><td style="border:1px solid #ccc; padding:6px;">${time}</td><td style="border:1px solid #ccc; padding:6px;">${type}</td><td style="border:1px solid #ccc; padding:6px;">${details}</td></tr>`;
           }
           html += '</table>';
           html += '<div style="margin-bottom: 12px;"><strong>Full Log:</strong></div>';
@@ -1003,6 +1070,263 @@ async function fetchAndShowLogs() {
 
 document.getElementById('refresh-logs').addEventListener('click', fetchAndShowLogs);
 document.getElementById('refresh-config').addEventListener('click', fetchAndShowConfig);
+
+// ---- Editable Config (Actions / Scenarios) ----
+
+let configActions = [];
+let configScenarios = [];
+let lastFocusedTrigger = null;
+
+const TRIGGER_VARIABLES = [
+  { name: 'uvi', desc: 'Current UV index' },
+  { name: 'clouds', desc: 'Current cloud cover (%)' },
+  { name: 'forecast_uv_median_today', desc: 'Median UV forecast for today' },
+  { name: 'forecast_uv_median_tomorrow', desc: 'Median UV forecast for tomorrow' },
+  { name: 'battery_cap', desc: 'Battery capacity (%)' },
+  { name: 'isDay', desc: 'true while it is daytime' },
+  { name: 'isNight', desc: 'true while it is nighttime' },
+  { name: 'power_total', desc: 'Sum of all numeric power readings' },
+  { name: "power['House']", desc: 'House power reading' },
+  { name: "power['Photovoltaics']", desc: 'Photovoltaics power reading' },
+  { name: "power['Battery']", desc: 'Battery power reading' },
+  { name: "power['Grid']", desc: 'Grid power reading' },
+];
+
+function escapeAttr(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function escapeHtml(value) {
+  return escapeAttr(value).replace(/'/g, '&#39;');
+}
+
+function renderTriggerVariables() {
+  const cont = document.getElementById('trigger-variables');
+  if (!cont) return;
+  cont.innerHTML = TRIGGER_VARIABLES.map(v =>
+    `<span class="cfg-var-chip" draggable="true" data-var="${escapeAttr(v.name)}" title="${escapeAttr(v.desc)}">${escapeHtml(v.name)}</span>`
+  ).join('');
+  cont.querySelectorAll('.cfg-var-chip').forEach(chip => {
+    chip.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', chip.dataset.var);
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+    chip.addEventListener('click', () => {
+      insertIntoTrigger(chip.dataset.var);
+    });
+  });
+}
+
+function insertIntoTrigger(text) {
+  const el = lastFocusedTrigger;
+  if (!el || !document.body.contains(el)) return;
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0, start) + text + el.value.slice(end);
+  const pos = start + text.length;
+  el.focus();
+  el.setSelectionRange(pos, pos);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function renderActionsTable() {
+  const cont = document.getElementById('config-actions');
+  if (!cont) return;
+  if (!configActions.length) {
+    cont.innerHTML = '<div>No actions configured. Click "+ Add action" to create one.</div>';
+    return;
+  }
+  let html = '<table class="cfg-table"><thead><tr>' +
+    '<th style="width:14%">id</th><th style="width:14%">label</th><th style="width:26%">description</th>' +
+    '<th style="width:14%">handler</th><th style="width:20%">playwright steps (one per line)</th>' +
+    '<th style="width:6%">enabled</th><th style="width:6%"></th>' +
+    '</tr></thead><tbody>';
+  configActions.forEach((a, i) => {
+    const steps = Array.isArray(a.playwright_steps) ? a.playwright_steps.join('\n') : (a.playwright_steps || '');
+    html += `<tr data-index="${i}">` +
+      `<td><input type="text" class="cfg-field" data-field="id" value="${escapeAttr(a.id)}"></td>` +
+      `<td><input type="text" class="cfg-field" data-field="label" value="${escapeAttr(a.label)}"></td>` +
+      `<td><textarea class="cfg-field" data-field="description" rows="2">${escapeHtml(a.description || '')}</textarea></td>` +
+      `<td><input type="text" class="cfg-field" data-field="handler" value="${escapeAttr(a.handler)}"></td>` +
+      `<td><textarea class="cfg-field" data-field="playwright_steps" rows="2">${escapeHtml(steps)}</textarea></td>` +
+      `<td class="cfg-col-enabled"><input type="checkbox" class="cfg-field" data-field="enabled" ${a.enabled ? 'checked' : ''}></td>` +
+      `<td class="cfg-col-actions"><button type="button" class="cfg-remove-row" data-remove-action="${i}">✕</button></td>` +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+}
+
+function renderScenariosTable() {
+  const cont = document.getElementById('config-scenarios');
+  if (!cont) return;
+  if (!configScenarios.length) {
+    cont.innerHTML = '<div>No scenarios configured. Click "+ Add scenario" to create one.</div>';
+    return;
+  }
+  const actionOptions = configActions.map(a => `<option value="${escapeAttr(a.id)}">${escapeHtml(a.label || a.id)}</option>`).join('');
+  let html = '<table class="cfg-table"><thead><tr>' +
+    '<th style="width:12%">id</th><th style="width:14%">label</th><th style="width:20%">description</th>' +
+    '<th style="width:26%">trigger</th><th style="width:16%">actionId</th><th style="width:6%">enabled</th><th style="width:6%"></th>' +
+    '</tr></thead><tbody>';
+  configScenarios.forEach((s, i) => {
+    html += `<tr data-index="${i}">` +
+      `<td><input type="text" class="cfg-field" data-field="id" value="${escapeAttr(s.id)}"></td>` +
+      `<td><input type="text" class="cfg-field" data-field="label" value="${escapeAttr(s.label)}"></td>` +
+      `<td><textarea class="cfg-field" data-field="description" rows="2">${escapeHtml(s.description || '')}</textarea></td>` +
+      `<td><textarea class="cfg-field cfg-trigger" data-field="trigger" rows="2">${escapeHtml(s.trigger || '')}</textarea></td>` +
+      `<td><select class="cfg-field" data-field="actionId"><option value="">— choose action —</option>${actionOptions}</select></td>` +
+      `<td class="cfg-col-enabled"><input type="checkbox" class="cfg-field" data-field="enabled" ${s.enabled ? 'checked' : ''}></td>` +
+      `<td class="cfg-col-actions"><button type="button" class="cfg-remove-row" data-remove-scenario="${i}">✕</button></td>` +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+  // set select values after inserting (option value with special chars is safer this way too)
+  configScenarios.forEach((s, i) => {
+    const row = cont.querySelector(`tr[data-index="${i}"]`);
+    const sel = row && row.querySelector('select[data-field="actionId"]');
+    if (sel) sel.value = s.actionId || '';
+  });
+}
+
+function showConfigSaveMessage(containerEl, ok, text) {
+  if (!containerEl) return;
+  let msg = containerEl.querySelector('.cfg-save-msg');
+  if (!msg) {
+    msg = document.createElement('span');
+    msg.className = 'cfg-save-msg';
+    containerEl.appendChild(msg);
+  }
+  msg.className = 'cfg-save-msg ' + (ok ? 'ok' : 'err');
+  msg.textContent = text;
+  setTimeout(() => { if (msg && msg.parentNode) msg.remove(); }, 4000);
+}
+
+// Actions table: field edits, add/remove rows
+document.getElementById('config-actions').addEventListener('input', (e) => {
+  const row = e.target.closest('tr[data-index]');
+  if (!row || !e.target.classList.contains('cfg-field')) return;
+  const idx = Number(row.dataset.index);
+  const field = e.target.dataset.field;
+  const action = configActions[idx];
+  if (!action) return;
+  if (field === 'enabled') {
+    action.enabled = e.target.checked;
+  } else if (field === 'playwright_steps') {
+    action.playwright_steps = e.target.value.split('\n').map(s => s.trim()).filter(Boolean);
+  } else {
+    action[field] = e.target.value;
+  }
+});
+document.getElementById('config-actions').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-remove-action]');
+  if (!btn) return;
+  const idx = Number(btn.dataset.removeAction);
+  configActions.splice(idx, 1);
+  renderActionsTable();
+  renderScenariosTable();
+});
+document.getElementById('add-action-row').addEventListener('click', () => {
+  configActions.push({ id: '', label: '', description: '', handler: '', playwright_steps: [], enabled: true });
+  renderActionsTable();
+  renderScenariosTable();
+});
+document.getElementById('save-actions').addEventListener('click', async () => {
+  const cont = document.getElementById('config-actions').parentElement;
+  try {
+    const r = await fetch('/api/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actions: configActions }) });
+    const j = await r.json();
+    if (j && j.ok) {
+      showConfigSaveMessage(cont, true, 'Saved.');
+      await fetchActions();
+      renderScenariosTable();
+    } else {
+      showConfigSaveMessage(cont, false, 'Save failed: ' + (j && j.error ? j.error : 'unknown error'));
+    }
+  } catch (err) {
+    showConfigSaveMessage(cont, false, 'Save failed: ' + String(err));
+  }
+});
+
+// Scenarios table: field edits, add/remove rows, trigger drag & drop, focus tracking
+document.getElementById('config-scenarios').addEventListener('input', (e) => {
+  const row = e.target.closest('tr[data-index]');
+  if (!row || !e.target.classList.contains('cfg-field')) return;
+  const idx = Number(row.dataset.index);
+  const field = e.target.dataset.field;
+  const scenario = configScenarios[idx];
+  if (!scenario) return;
+  scenario[field] = field === 'enabled' ? e.target.checked : e.target.value;
+});
+document.getElementById('config-scenarios').addEventListener('change', (e) => {
+  if (e.target.dataset.field === 'actionId') {
+    const row = e.target.closest('tr[data-index]');
+    const idx = row && Number(row.dataset.index);
+    if (configScenarios[idx]) configScenarios[idx].actionId = e.target.value;
+  }
+});
+document.getElementById('config-scenarios').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-remove-scenario]');
+  if (!btn) return;
+  const idx = Number(btn.dataset.removeScenario);
+  configScenarios.splice(idx, 1);
+  renderScenariosTable();
+});
+document.getElementById('config-scenarios').addEventListener('focusin', (e) => {
+  if (e.target.classList && e.target.classList.contains('cfg-trigger')) {
+    lastFocusedTrigger = e.target;
+  }
+});
+document.getElementById('config-scenarios').addEventListener('dragover', (e) => {
+  if (!e.target.classList || !e.target.classList.contains('cfg-trigger')) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  e.target.classList.add('drag-over');
+});
+document.getElementById('config-scenarios').addEventListener('dragleave', (e) => {
+  if (e.target.classList && e.target.classList.contains('cfg-trigger')) {
+    e.target.classList.remove('drag-over');
+  }
+});
+document.getElementById('config-scenarios').addEventListener('drop', (e) => {
+  if (!e.target.classList || !e.target.classList.contains('cfg-trigger')) return;
+  e.preventDefault();
+  e.target.classList.remove('drag-over');
+  const text = e.dataTransfer.getData('text/plain');
+  if (!text) return;
+  const el = e.target;
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0, start) + text + el.value.slice(end);
+  const pos = start + text.length;
+  lastFocusedTrigger = el;
+  el.focus();
+  el.setSelectionRange(pos, pos);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+});
+document.getElementById('add-scenario-row').addEventListener('click', () => {
+  configScenarios.push({ id: '', label: '', description: '', trigger: '', actionId: '', enabled: true });
+  renderScenariosTable();
+});
+document.getElementById('save-scenarios').addEventListener('click', async () => {
+  const cont = document.getElementById('config-scenarios').parentElement;
+  try {
+    const r = await fetch('/api/scenarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scenarios: configScenarios }) });
+    const j = await r.json();
+    if (j && j.ok) {
+      showConfigSaveMessage(cont, true, 'Saved.');
+    } else {
+      showConfigSaveMessage(cont, false, 'Save failed: ' + (j && j.error ? j.error : 'unknown error'));
+    }
+  } catch (err) {
+    showConfigSaveMessage(cont, false, 'Save failed: ' + String(err));
+  }
+});
 
 async function fetchAndShowScreenshots() {
   try {
@@ -1048,46 +1372,11 @@ async function fetchAndShowConfig() {
       if (el) el.textContent = 'Failed to load config';
       return;
     }
-    const actions = actionsRes.actions || [];
-    const scenarios = scenariosRes.scenarios || [];
-    const cont = document.getElementById('config-actions');
-    if (!cont) return;
-
-    let html = '<div style="margin-bottom:16px"><strong>Actions</strong></div>';
-    if (!actions.length) {
-      html += '<div>No actions configured.</div>';
-    } else {
-      html += '<table style="width:100%; border-collapse:collapse"><thead><tr><th style="border:1px solid #eee; padding:6px">id</th><th style="border:1px solid #eee; padding:6px">label</th><th style="border:1px solid #eee; padding:6px">description</th><th style="border:1px solid #eee; padding:6px">handler</th><th style="border:1px solid #eee; padding:6px">enabled</th></tr></thead><tbody>';
-      for (const a of actions) {
-        html += '<tr>' +
-          `<td style="border:1px solid #eee; padding:6px">${(a.id||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px">${(a.label||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px">${(a.description||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px">${(a.handler||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px">${a.enabled ? 'yes' : 'no'}</td>` +
-          '</tr>';
-      }
-      html += '</tbody></table>';
-    }
-
-    html += '<div style="margin:24px 0 16px"><strong>Scenarios</strong></div>';
-    if (!scenarios.length) {
-      html += '<div>No scenarios configured.</div>';
-    } else {
-      html += '<table style="width:100%; border-collapse:collapse"><thead><tr><th style="border:1px solid #eee; padding:6px">id</th><th style="border:1px solid #eee; padding:6px">label</th><th style="border:1px solid #eee; padding:6px">trigger</th><th style="border:1px solid #eee; padding:6px">actionId</th><th style="border:1px solid #eee; padding:6px">enabled</th></tr></thead><tbody>';
-      for (const s of scenarios) {
-        html += '<tr>' +
-          `<td style="border:1px solid #eee; padding:6px">${(s.id||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px">${(s.label||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px; font-family:monospace">${(s.trigger||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px">${(s.actionId||'')}</td>` +
-          `<td style="border:1px solid #eee; padding:6px">${s.enabled ? 'yes' : 'no'}</td>` +
-          '</tr>';
-      }
-      html += '</tbody></table>';
-    }
-
-    cont.innerHTML = html;
+    configActions = (actionsRes.actions || []).map(a => Object.assign({}, a));
+    configScenarios = (scenariosRes.scenarios || []).map(s => Object.assign({}, s));
+    renderActionsTable();
+    renderScenariosTable();
+    renderTriggerVariables();
   } catch (err) {
     console.error('fetchAndShowConfig failed', err);
     const el = document.getElementById('config-actions');
@@ -1096,6 +1385,44 @@ async function fetchAndShowConfig() {
 }
 
 document.getElementById('refresh-screenshots').addEventListener('click', fetchAndShowScreenshots);
+
+document.getElementById('clear-screenshots').addEventListener('click', async () => {
+  const msgEl = document.getElementById('clear-screenshots-msg');
+  const dateInput = document.getElementById('clear-screenshots-date');
+  const setMsg = (ok, text) => {
+    if (!msgEl) return;
+    msgEl.style.color = ok ? 'var(--green, #2f8f3a)' : '#b91c1c';
+    msgEl.textContent = text;
+  };
+  if (!dateInput || !dateInput.value) {
+    setMsg(false, 'Pick a date first.');
+    return;
+  }
+  const beforeMs = new Date(dateInput.value + 'T00:00:00').getTime();
+  if (!Number.isFinite(beforeMs)) {
+    setMsg(false, 'Invalid date.');
+    return;
+  }
+  if (!window.confirm(`Delete all screenshots older than ${dateInput.value}? This cannot be undone.`)) {
+    return;
+  }
+  try {
+    const r = await fetch('/api/screenshots/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beforeMs })
+    });
+    const j = await r.json();
+    if (j && j.ok) {
+      setMsg(true, `Deleted ${j.count} screenshot(s).`);
+      await fetchAndShowScreenshots();
+    } else {
+      setMsg(false, 'Failed: ' + (j && j.error ? j.error : 'unknown error'));
+    }
+  } catch (err) {
+    setMsg(false, 'Failed: ' + String(err));
+  }
+});
 
 // auto-refresh every 5s
 refresh();

@@ -208,8 +208,13 @@
     </div>
 
     <div id="view-screenshots" style="display:none">
-      <div style="margin-top:8px">
+      <div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">
         <button id="refresh-screenshots">Refresh Screenshots</button>
+        <span style="border-left:1px solid var(--line,#ddd); height:20px; margin:0 4px"></span>
+        <label for="clear-screenshots-date" style="font-size:13px; color:var(--muted)">Clear screenshots older than:</label>
+        <input type="date" id="clear-screenshots-date">
+        <button id="clear-screenshots">Clear</button>
+        <span id="clear-screenshots-msg" style="font-size:12px"></span>
       </div>
       <div id="screenshots-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px"></div>
     </div>
@@ -218,9 +223,33 @@
       <div style="margin-top:8px; display:flex; align-items:center; gap:8px">
         <button id="refresh-config">Refresh Config</button>
       </div>
-      <div id="config-actions" style="margin-top:12px">
-        <!-- actions config table will be rendered here -->
+
+      <div style="margin-top:20px">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+          <strong>Actions</strong>
+          <div style="display:flex; gap:8px">
+            <button id="add-action-row">+ Add action</button>
+            <button id="save-actions">Save actions</button>
+          </div>
+        </div>
+        <div id="config-actions"><!-- actions config table will be rendered here --></div>
       </div>
+
+      <div style="margin-top:28px">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+          <strong>Scenarios</strong>
+          <div style="display:flex; gap:8px">
+            <button id="add-scenario-row">+ Add scenario</button>
+            <button id="save-scenarios">Save scenarios</button>
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:12px; color:var(--muted); margin-bottom:4px">Drag a variable into a Trigger field (or click a chip while a trigger field is focused):</div>
+          <div id="trigger-variables" style="display:flex; flex-wrap:wrap; gap:6px"></div>
+        </div>
+        <div id="config-scenarios"><!-- scenarios config table will be rendered here --></div>
+      </div>
+
       <div style="margin-top:20px; padding-top:14px; border-top:1px solid var(--border,#ddd)">
         <div style="font-weight:600; margin-bottom:8px; font-size:14px">Debug: Force Action</div>
         <div style="display:flex; align-items:center; gap:8px">

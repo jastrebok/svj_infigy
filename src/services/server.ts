@@ -111,6 +111,29 @@ app.get('/api/scenarios', async (_req, res) => {
   }
 });
 
+// Save scenarios config (overwrites file) and reloads it into the running controller
+app.post('/api/scenarios', async (req, res) => {
+  try {
+    const scenarios = req.body && req.body.scenarios;
+    if (!Array.isArray(scenarios)) return res.status(400).json({ ok: false, error: 'scenarios must be an array' });
+    for (const s of scenarios) {
+      if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id.trim()) {
+        return res.status(400).json({ ok: false, error: 'each scenario requires a non-empty string id' });
+      }
+      if (typeof s.trigger !== 'string' || typeof s.actionId !== 'string') {
+        return res.status(400).json({ ok: false, error: `scenario "${s.id}" requires string "trigger" and "actionId"` });
+      }
+    }
+    const cfgPath = path.join(__dirname, '..', 'support', 'scenarios-config.json');
+    await fs.promises.writeFile(cfgPath, JSON.stringify(scenarios, null, 2) + '\n', 'utf8');
+    await controller.reloadScenarios();
+    void controller.logEvent('config', { target: 'scenarios', count: scenarios.length, ids: scenarios.map((s: any) => s.id) });
+    res.json({ ok: true, scenarios });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 app.get('/api/metrics', async (req, res) => {
   try {
     const sinceParam = req.query.since;
@@ -193,6 +216,26 @@ app.get('/api/actions', async (_req, res) => {
   }
 });
 
+// Save actions config (overwrites file) and reloads it into the running controller
+app.post('/api/actions', async (req, res) => {
+  try {
+    const actions = req.body && req.body.actions;
+    if (!Array.isArray(actions)) return res.status(400).json({ ok: false, error: 'actions must be an array' });
+    for (const a of actions) {
+      if (!a || typeof a !== 'object' || typeof a.id !== 'string' || !a.id.trim()) {
+        return res.status(400).json({ ok: false, error: 'each action requires a non-empty string id' });
+      }
+    }
+    const cfgPath = path.join(__dirname, '..', 'support', 'actions-config.json');
+    await fs.promises.writeFile(cfgPath, JSON.stringify(actions, null, 2) + '\n', 'utf8');
+    await controller.reloadActions();
+    void controller.logEvent('config', { target: 'actions', count: actions.length, ids: actions.map((a: any) => a.id) });
+    res.json({ ok: true, actions });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 // Weather endpoint — always fetches latest weather summary on demand
 app.get('/api/weather', async (_req, res) => {
   try {
@@ -227,6 +270,38 @@ app.get('/api/screenshots', async (_req, res) => {
     // return only png/jpg and sort by name desc
     const pics = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f)).sort().reverse();
     res.json({ ok: true, files: pics });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// Delete screenshots older than a given cutoff date (based on file modified time)
+app.post('/api/screenshots/clear', async (req, res) => {
+  try {
+    const beforeMs = req.body && typeof req.body.beforeMs === 'number' ? req.body.beforeMs
+      : (req.body && typeof req.body.beforeIso === 'string' ? Date.parse(req.body.beforeIso) : NaN);
+    if (!Number.isFinite(beforeMs)) {
+      return res.status(400).json({ ok: false, error: 'provide a valid "beforeMs" (epoch ms) or "beforeIso" (date string)' });
+    }
+    const screenshotsDir = path.join(__dirname, '..', '..', 'public', 'screenshots');
+    const exists = await new Promise(resolve => fs.exists(screenshotsDir, exists => resolve(exists)));
+    if (!exists) return res.json({ ok: true, deleted: [], count: 0 });
+    const files = (await fs.promises.readdir(screenshotsDir)).filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
+    const deleted: string[] = [];
+    for (const f of files) {
+      const filePath = path.join(screenshotsDir, f);
+      try {
+        const stat = await fs.promises.stat(filePath);
+        if (stat.mtimeMs < beforeMs) {
+          await fs.promises.unlink(filePath);
+          deleted.push(f);
+        }
+      } catch (e) {
+        console.warn('Failed to inspect/delete screenshot', f, e);
+      }
+    }
+    void controller.logEvent('screenshots_cleared', { count: deleted.length, beforeMs });
+    res.json({ ok: true, deleted, count: deleted.length });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });
   }
